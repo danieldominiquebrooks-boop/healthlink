@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StarRating } from "@/components/StarRating";
 import { ReviewModal } from "@/components/ReviewModal";
 import { useSaved } from "@/context/SavedContext";
+import { DAYS, openStatus } from "@/lib/hours";
 import api from "@/lib/api";
 
 const FALLBACK = "https://images.unsplash.com/photo-1622253692010-333f2da6031d?crop=entropy&cs=srgb&fm=jpg&q=85&w=800";
@@ -164,6 +165,34 @@ export default function ProviderDetail() {
                 <CalendarPlus size={15} className="mr-1.5" /> Leave a review
               </Button>
             </div>
+
+            {provider.hours && (() => {
+              const st = openStatus(provider.hours);
+              return (
+                <div className="hl-card p-5 mt-4" data-testid="provider-hours">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-display font-bold text-[#0F172A]">Opening hours</h3>
+                    {!st.unknown && (
+                      <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${st.open ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                        {st.open ? "Open now" : "Closed"}
+                      </span>
+                    )}
+                  </div>
+                  <ul className="space-y-1.5 text-sm">
+                    {DAYS.map((d) => {
+                      const day = provider.hours[d.key];
+                      const closed = !day || day.closed || !day.open || !day.close;
+                      return (
+                        <li key={d.key} className="flex items-center justify-between">
+                          <span className="text-muted-foreground">{d.label}</span>
+                          <span className="text-[#0F172A] font-medium">{closed ? "Closed" : `${day.open} – ${day.close}`}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>

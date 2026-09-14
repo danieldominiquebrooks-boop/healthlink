@@ -1,14 +1,16 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { MapPin, BadgeCheck, ShieldCheck, Heart } from "lucide-react";
+import { MapPin, BadgeCheck, ShieldCheck, Heart, Clock } from "lucide-react";
 import { StarRating } from "@/components/StarRating";
 import { useSaved } from "@/context/SavedContext";
+import { openStatus } from "@/lib/hours";
 
 const FALLBACK = "https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?crop=entropy&cs=srgb&fm=jpg&q=85&w=400";
 
 export function ProviderCard({ provider, index = 0 }) {
   const { isSaved, toggle } = useSaved();
   const saved = isSaved(provider.id);
+  const status = openStatus(provider.hours);
   const onSave = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -31,6 +33,11 @@ export function ProviderCard({ provider, index = 0 }) {
           {provider.in_network && (
             <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-500/90 text-white text-[10px] font-semibold backdrop-blur-sm">
               <ShieldCheck size={11} /> In-Network
+            </span>
+          )}
+          {!status.unknown && (
+            <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold backdrop-blur-sm ${status.open ? "bg-emerald-500/90 text-white" : "bg-slate-700/80 text-slate-100"}`} data-testid={`open-badge-${index}`}>
+              <Clock size={11} /> {status.open ? "Open now" : "Closed"}
             </span>
           )}
         </div>

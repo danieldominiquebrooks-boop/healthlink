@@ -39,8 +39,10 @@ Responsive Caribbean healthcare directory web app for phone/tablet/desktop. Prov
 - Installable PWA ("Get the app" button): manifest + service worker + icons; native install on Android/Chrome, Add-to-Home-Screen guidance on iOS.
 - Theme-aware header banner (light/dark) driven by the header toggle; article preview before publishing; large brand logo in the home hero.
 - Install nudge (one-time mobile banner); offline-ready service worker (cache-fallback) + offline banner; map/detail directions fall back to written address when coordinates are missing.
-- Brand logo recreated as transparent interlocking gold+pink crosses with theme-aware wordmark (legible on light & dark).
-- Fully responsive; custom SVG brand logo. Verified: backend pytest + full frontend E2E — 100% pass (iterations 1-6).
+- Brand logo recreated as transparent interlocking gold+pink crosses with theme-aware wordmark (legible on light & dark); favicon + installed-app icons use the crosses.
+- Provider opening hours (per-day editor) with "Open now"/"Closed" badges on cards and a full hours panel on provider profiles.
+- Featured articles: admins pin articles to the top of the Health Blog with a "Featured" badge.
+- Fully responsive; custom SVG brand logo. Verified: backend pytest + full frontend E2E — 100% pass (iterations 1-7).
 
 ## Backlog
 - P1: Rich-text article editor; article categories management UI.

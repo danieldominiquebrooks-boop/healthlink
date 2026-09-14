@@ -10,7 +10,7 @@ from fastapi.responses import Response
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import uuid
 import logging
 import jwt
@@ -164,6 +164,7 @@ class ProviderBase(BaseModel):
     image_url: Optional[str] = ""
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    hours: Optional[Dict[str, Any]] = None
     services: List[str] = Field(default_factory=list)
     in_network: bool = False
     accepting_new_patients: bool = True
@@ -194,6 +195,7 @@ class ArticleBase(BaseModel):
     image_url: Optional[str] = ""
     author: Optional[str] = "My Healthcare Link"
     published: bool = True
+    featured: bool = False
 
 class EventBase(BaseModel):
     name: str
@@ -468,7 +470,7 @@ async def list_articles(island: Optional[str] = None, category: Optional[str] = 
     if q:
         rx = {"$regex": re.escape(q), "$options": "i"}
         query["$or"] = [{"title": rx}, {"excerpt": rx}, {"content": rx}]
-    docs = await db.articles.find(query, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    docs = await db.articles.find(query, {"_id": 0}).sort([("featured", -1), ("created_at", -1)]).to_list(limit)
     return docs
 
 @api_router.get("/articles/{slug}")

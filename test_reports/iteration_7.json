@@ -1,0 +1,22 @@
+{
+  "summary": "Iteration 7 testing complete for the 4 new features + regression. (1) Provider hours: POST /api/admin/providers with hours object persists correctly; GET /api/providers/{id} returns identical hours (mon 08:00-20:00, sun closed:true). Provider without hours has hours=null/absent. (2) Open-now badge: on /directory, TEST_ITER7_WithHours (today set 00:00-23:59) shows [data-testid=open-badge-0]='Open now'; TEST_ITER7_NoHours has NO open-badge element. Provider detail /provider/{id} renders [data-testid=provider-hours] listing all 7 days (Mon-Sun) with status text; without hours the card is NOT rendered. (3) Featured articles: created plain + featured articles, GET /api/articles returns featured first (order verified via list index). /blog shows [data-testid^=article-featured-] gold '★ Featured' badge, and featured article renders before the plain one (idx 0 vs idx 1). (4) Favicons: /favicon.ico, /favicon.png, /apple-touch-icon.png, /icon-192.png, /icon-512.png all 200; index.html references favicon.ico + apple-touch-icon; manifest.json still lists icon-192 & icon-512. Backend regression: 13/13 pytest passed (auth, providers list, reviews list, provider CRUD, article CRUD). Seed test data (2 providers + 2 articles) created and cleaned up — verified count of TEST_ITER7 providers = 0 after cleanup.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_iter7.py", "/app/test_reports/pytest/iter7.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "hours.js openStatus overnight support (c<=o wrap) is nice, but hasHours() requires AT LEAST one day with open&close and not closed to consider hours 'known'. If admin sets ALL 7 days closed, hasHours returns false and no badge is shown at all (rather than 'Closed today'). Minor UX; not a bug.",
+    "HoursEditor: default fill of 09:00-17:00 applied on first edit of a day may not be intuitive if admin wanted a completely empty schedule. Acceptable.",
+    "ProviderCard open-badge relies on browser LOCAL time — correct for user, but be aware that Caribbean providers viewed from a very different timezone will see badges reflecting the viewer's clock, not the provider's local time. Not fixed in current release; document if needed.",
+    "server.py list_articles sort ('featured', -1) works, but older articles missing the 'featured' field sort as if featured=null which Mongo treats consistently — verified featured=true appears first. Fine.",
+    "AdminDashboard.jsx still large (~650+ lines) — split by tab (Providers/Articles/Events) when convenient (repeat comment from iter6)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter7.py", "/app/test_reports/iteration_7.json"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "danieldominiquebrooks@gmail.com / HealthLink@2026!",
+  "seed_data_creation": "Created TEST_ITER7_Hours, TEST_ITER7_NoHours, TEST_ITER7_WithHours providers and TEST_ITER7_Plain + TEST_ITER7_Featured articles via /api/admin/* endpoints. All deleted post-test — verified TEST_ITER7 provider count = 0.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Provider hours object shape: {mon:{open:'08:00',close:'17:00',closed:false}, ...}. Set today's key to 00:00-23:59 to force 'Open now' badge. Featured article badge testid is article-featured-<i> where <i> is card index. GET /api/articles already applies featured-first sort backend-side, so frontend just renders in order. When testing, remember to source REACT_APP_BACKEND_URL from /app/frontend/.env before running pytest (else requests fails with MissingSchema).",
+  "rca of the issue": "N/A — no defects found."
+}

@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { StarRating } from "@/components/StarRating";
 import { RichTextEditor } from "@/components/RichTextEditor";
+import { HoursEditor } from "@/components/HoursEditor";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -52,6 +53,7 @@ const SCHEMAS = {
     { key: "address", label: "Address", full: true },
     { key: "latitude", label: "Latitude (optional · for map)", type: "number" },
     { key: "longitude", label: "Longitude (optional · for map)", type: "number" },
+    { key: "hours", label: "Opening hours", type: "hours", full: true },
     { key: "in_network", label: "In-Network", type: "switch" },
     { key: "accepting_new_patients", label: "Accepting new patients", type: "switch" },
     { key: "verified", label: "Verified", type: "switch" },
@@ -80,6 +82,7 @@ const SCHEMAS = {
     { key: "image_url", label: "Image", type: "image", full: true },
     { key: "excerpt", label: "Excerpt", type: "textarea", full: true },
     { key: "content", label: "Content", type: "richtext", full: true },
+    { key: "featured", label: "Featured (pin to top of blog)", type: "switch" },
     { key: "published", label: "Published", type: "switch" },
   ],
   events: [
@@ -214,6 +217,8 @@ function EntityManager({ entity }) {
         v = !!v;
       } else if (s.type === "number") {
         v = (v === "" || v === null || v === undefined) ? null : Number(v);
+      } else if (s.type === "hours") {
+        v = v && typeof v === "object" && Object.keys(v).length ? v : null;
       } else {
         v = v ?? "";
       }
@@ -449,6 +454,8 @@ function Field({ field, value, onChange }) {
       {field.type !== "switch" && <Label className="mb-1.5 block text-sm">{field.label}{field.req && <span className="text-[#E89D93]"> *</span>}</Label>}
       {field.type === "richtext" ? (
         <RichTextEditor value={value || ""} onChange={onChange} testid={`field-${field.key}`} />
+      ) : field.type === "hours" ? (
+        <HoursEditor value={value} onChange={onChange} testid={`field-${field.key}`} />
       ) : field.type === "number" ? (
         <Input type="number" step="any" data-testid={`field-${field.key}`} value={value ?? ""} onChange={(e) => onChange(e.target.value)} />
       ) : field.type === "textarea" ? (
