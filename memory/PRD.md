@@ -36,7 +36,9 @@ Responsive Caribbean healthcare directory web app for phone/tablet/desktop. Prov
 - Public Services section removed (Directory covers discovery); admin Services tab removed.
 - Admins can toggle a provider's Featured status directly from the list (star button).
 - Map pins include a "Get directions" link to Google Maps; rich text editor supports inline images in article bodies.
-- Fully responsive; custom SVG brand logo. Verified: backend pytest + full frontend E2E — 100% pass (iterations 1-4).
+- Installable PWA ("Get the app" button): manifest + service worker + icons; native install on Android/Chrome, Add-to-Home-Screen guidance on iOS.
+- Theme-aware header banner (light/dark) driven by the header toggle; article preview before publishing; large brand logo in the home hero.
+- Fully responsive; custom SVG brand logo. Verified: backend pytest + full frontend E2E — 100% pass (iterations 1-5).
 
 ## Backlog
 - P1: Rich-text article editor; article categories management UI.

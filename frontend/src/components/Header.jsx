@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X, ChevronDown, MapPin, Search, Heart, Sun, Moon } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { InstallButton } from "@/components/InstallButton";
 import { NAV_LINKS, ISLANDS } from "@/lib/constants";
 import { useIsland } from "@/context/IslandContext";
 import { useSaved } from "@/context/SavedContext";
@@ -22,15 +23,23 @@ export function Header() {
   const navigate = useNavigate();
   const islandOptions = ["All Islands", ...ISLANDS];
 
+  const dark = theme === "dark";
+  const iconBtn = dark
+    ? "bg-white/8 border-white/10 text-slate-100 hover:border-[#D4AF37]/50"
+    : "bg-black/[0.04] border-black/10 text-[#0F172A] hover:border-[#D4AF37]/60";
+  const navInactive = dark
+    ? "text-slate-200 hover:text-white hover:bg-white/5"
+    : "text-slate-600 hover:text-[#0F172A] hover:bg-black/[0.04]";
+
   return (
     <header
       data-testid="main-header"
-      className="sticky top-0 z-50 bg-[#0B132B]/95 backdrop-blur-md border-b border-[#D4AF37]/25"
+      className={`sticky top-0 z-50 backdrop-blur-md border-b transition-colors ${dark ? "bg-[#0B132B]/95 border-[#D4AF37]/25" : "bg-white/95 border-[#E89D93]/25"}`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-[72px]">
           <Link to="/" data-testid="logo-link" className="shrink-0">
-            <Logo dark />
+            <Logo dark={dark} />
           </Link>
 
           <nav className="hidden lg:flex items-center gap-1">
@@ -41,9 +50,7 @@ export function Header() {
                   key={l.to}
                   to={l.to}
                   data-testid={`nav-${l.label.toLowerCase().replace(/\s/g, "-")}`}
-                  className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    active ? "text-[#D4AF37]" : "text-slate-200 hover:text-white hover:bg-white/5"
-                  }`}
+                  className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${active ? "text-[#D4AF37]" : navInactive}`}
                 >
                   {l.label}
                 </Link>
@@ -52,11 +59,13 @@ export function Header() {
           </nav>
 
           <div className="flex items-center gap-2">
+            <InstallButton variant="desktop" />
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   data-testid="island-selector-trigger"
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/8 border border-white/10 text-slate-100 text-sm font-medium hover:border-[#D4AF37]/50 transition-colors"
+                  className={`hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${iconBtn}`}
                 >
                   <MapPin size={15} className="text-[#E89D93]" />
                   <span className="max-w-[130px] truncate">{island}</span>
@@ -89,16 +98,16 @@ export function Header() {
             <button
               onClick={toggle}
               data-testid="theme-toggle"
-              className="flex items-center justify-center w-9 h-9 rounded-lg bg-white/8 border border-white/10 text-slate-100 hover:border-[#D4AF37]/50 transition-colors"
+              className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-colors ${iconBtn}`}
               aria-label="Toggle light and dark mode"
             >
-              {theme === "dark" ? <Sun size={17} className="text-[#D4AF37]" /> : <Moon size={17} />}
+              {dark ? <Sun size={17} className="text-[#D4AF37]" /> : <Moon size={17} />}
             </button>
 
             <Link
               to="/saved"
               data-testid="header-saved-link"
-              className="hidden sm:flex relative items-center justify-center w-9 h-9 rounded-lg bg-white/8 border border-white/10 text-slate-100 hover:border-[#D4AF37]/50 transition-colors"
+              className={`hidden sm:flex relative items-center justify-center w-9 h-9 rounded-lg border transition-colors ${iconBtn}`}
               aria-label="Saved providers"
             >
               <Heart size={17} className={count > 0 ? "text-[#E89D93]" : ""} fill={count > 0 ? "#E89D93" : "none"} />
@@ -112,7 +121,7 @@ export function Header() {
             <button
               data-testid="mobile-menu-btn"
               onClick={() => setOpen((v) => !v)}
-              className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg bg-white/8 text-white"
+              className={`lg:hidden flex items-center justify-center w-9 h-9 rounded-lg border ${iconBtn}`}
               aria-label="Menu"
             >
               {open ? <X size={20} /> : <Menu size={20} />}
@@ -122,39 +131,40 @@ export function Header() {
       </div>
 
       {open && (
-        <div className="lg:hidden bg-[#0B132B] border-t border-white/10 px-4 py-3 space-y-1" data-testid="mobile-menu">
+        <div className={`lg:hidden border-t px-4 py-3 space-y-1 ${dark ? "bg-[#0B132B] border-white/10" : "bg-white border-black/10"}`} data-testid="mobile-menu">
           {NAV_LINKS.map((l) => (
             <Link
               key={l.to}
               to={l.to}
               onClick={() => setOpen(false)}
-              className="block px-3 py-2.5 rounded-lg text-slate-200 hover:bg-white/5 text-sm font-medium"
+              className={`block px-3 py-2.5 rounded-lg text-sm font-medium ${navInactive}`}
             >
               {l.label}
             </Link>
           ))}
+          <div className="py-1"><InstallButton variant="mobile" onNavigate={() => setOpen(false)} /></div>
           <Link
             to="/saved"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-slate-200 hover:bg-white/5 text-sm font-medium"
+            className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium ${navInactive}`}
           >
             <Heart size={15} className={count > 0 ? "text-[#E89D93]" : ""} fill={count > 0 ? "#E89D93" : "none"} /> Saved{count > 0 ? ` (${count})` : ""}
           </Link>
           <button
             onClick={toggle}
             data-testid="theme-toggle-mobile"
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-slate-200 hover:bg-white/5 text-sm font-medium"
+            className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium ${navInactive}`}
           >
-            {theme === "dark" ? <Sun size={15} className="text-[#D4AF37]" /> : <Moon size={15} />} {theme === "dark" ? "Light mode" : "Dark mode"}
+            {dark ? <Sun size={15} className="text-[#D4AF37]" /> : <Moon size={15} />} {dark ? "Light mode" : "Dark mode"}
           </button>
-          <div className="pt-2 border-t border-white/10">
+          <div className={`pt-2 border-t ${dark ? "border-white/10" : "border-black/10"}`}>
             <p className="px-3 pt-2 pb-1 text-xs uppercase tracking-widest text-[#D4AF37]">Island</p>
             <div className="grid grid-cols-2 gap-1">
               {["All Islands", ...ISLANDS].map((opt) => (
                 <button
                   key={opt}
                   onClick={() => { setIsland(opt); setOpen(false); }}
-                  className={`text-left px-3 py-2 rounded-lg text-sm ${island === opt ? "bg-[#E89D93] text-white" : "text-slate-200"}`}
+                  className={`text-left px-3 py-2 rounded-lg text-sm ${island === opt ? "bg-[#E89D93] text-white" : navInactive}`}
                 >
                   {opt}
                 </button>

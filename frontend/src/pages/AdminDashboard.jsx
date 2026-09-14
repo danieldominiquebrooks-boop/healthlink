@@ -257,6 +257,7 @@ function EntityManager({ entity }) {
   const [importFile, setImportFile] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const downloadTemplate = () => {
     const blob = new Blob([PROVIDER_TEMPLATE], { type: "text/csv" });
@@ -355,11 +356,36 @@ function EntityManager({ entity }) {
             ))}
           </div>
           <DialogFooter>
+            {entity === "articles" && (
+              <Button variant="outline" onClick={() => setPreviewOpen(true)} data-testid="preview-article-btn" className="border-[#D4AF37]/50 text-[#B8912B] hover:bg-[#FDF7E7]">
+                <Eye size={15} className="mr-1.5" /> Preview
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button onClick={save} disabled={saving} data-testid={`save-${entity}-btn`} className="bg-[#0B132B] hover:bg-[#1C2541] text-white">
               {saving ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[88vh] overflow-y-auto" data-testid="article-preview-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-display">Article preview</DialogTitle>
+            <DialogDescription>This is how your article will look once published{form.published ? "" : " (currently a draft)"}.</DialogDescription>
+          </DialogHeader>
+          <article className="pt-1">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-bold uppercase tracking-widest text-[#D4AF37]">{form.category || "Article"}</span>
+              {form.island && <span className="text-xs text-muted-foreground">· {form.island}</span>}
+            </div>
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#0F172A] leading-tight">{form.title || "Untitled article"}</h1>
+            <p className="text-muted-foreground mt-2 text-sm">By {form.author || "My Healthcare Link"}</p>
+            {form.image_url && <img src={form.image_url} alt="" className="w-full h-56 object-cover rounded-2xl mt-4" />}
+            {form.excerpt && <p className="text-lg text-[#0F172A] font-medium mt-4 leading-relaxed">{form.excerpt}</p>}
+            <div className="hl-prose mt-4 text-[#334155] leading-relaxed" dangerouslySetInnerHTML={{ __html: form.content || "<p style='color:#9aa3b2'>No content yet.</p>" }} />
+          </article>
         </DialogContent>
       </Dialog>
 

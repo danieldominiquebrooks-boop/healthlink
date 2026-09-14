@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Layout } from "@/components/Layout";
 import { ProviderCard } from "@/components/ProviderCard";
+import { LogoMark } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
 import { useIsland } from "@/context/IslandContext";
@@ -57,6 +58,7 @@ export default function Home() {
         </div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-24 lg:pt-24 lg:pb-32">
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="max-w-3xl">
+            <LogoMark size={112} className="mb-8 hl-float" />
             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full hl-glass text-xs font-semibold uppercase tracking-[0.2em] text-[#D4AF37]">
               <Sparkles size={13} /> Quality care, brighter tomorrows
             </span>
