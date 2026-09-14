@@ -59,7 +59,10 @@ export function ProvidersMap({ providers, island }) {
                 <p className="font-bold text-[#0F172A] !m-0">{p.name}</p>
                 <p className="text-[#E89D93] font-semibold !mt-0.5 !mb-1 text-xs">{p.specialty}</p>
                 <p className="text-slate-500 text-xs !m-0">{p.island}</p>
-                <Link to={`/provider/${p.id}`} className="text-[#B8912B] font-semibold text-xs underline">View profile →</Link>
+                <div className="flex flex-col gap-0.5 mt-1">
+                  <Link to={`/provider/${p.id}`} className="text-[#B8912B] font-semibold text-xs underline">View profile →</Link>
+                  <a href={`https://www.google.com/maps/dir/?api=1&destination=${pos[0]},${pos[1]}`} target="_blank" rel="noreferrer" className="text-[#E89D93] font-semibold text-xs underline">Get directions →</a>
+                </div>
               </div>
             </Popup>
           </Marker>

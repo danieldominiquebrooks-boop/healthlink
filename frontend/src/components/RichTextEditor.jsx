@@ -1,8 +1,11 @@
 import React, { useRef, useEffect } from "react";
-import { Bold, Italic, Heading2, Heading3, List, ListOrdered, Link2, Pilcrow } from "lucide-react";
+import { Bold, Italic, Heading2, Heading3, List, ListOrdered, Link2, Pilcrow, ImagePlus } from "lucide-react";
+import api, { formatApiError } from "@/lib/api";
+import { toast } from "sonner";
 
 export function RichTextEditor({ value, onChange, testid }) {
   const ref = useRef(null);
+  const fileRef = useRef(null);
 
   useEffect(() => {
     if (ref.current && ref.current.innerHTML !== (value || "")) {
@@ -23,6 +26,24 @@ export function RichTextEditor({ value, onChange, testid }) {
   const addLink = () => {
     const url = window.prompt("Enter the link URL (include https://)");
     if (url) exec("createLink", url);
+  };
+
+  const insertImage = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const { data } = await api.post("/admin/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      ref.current.focus();
+      document.execCommand("insertImage", false, `${process.env.REACT_APP_BACKEND_URL}${data.url}`);
+      sync();
+      toast.success("Image inserted");
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+    }
   };
 
   const Btn = ({ onClick, title, children, tid }) => (
@@ -51,6 +72,8 @@ export function RichTextEditor({ value, onChange, testid }) {
         <Btn onClick={() => exec("insertUnorderedList")} title="Bullet list" tid="rte-ul"><List size={16} /></Btn>
         <Btn onClick={() => exec("insertOrderedList")} title="Numbered list"><ListOrdered size={16} /></Btn>
         <Btn onClick={addLink} title="Insert link" tid="rte-link"><Link2 size={15} /></Btn>
+        <Btn onClick={() => fileRef.current?.click()} title="Insert image" tid="rte-image"><ImagePlus size={15} /></Btn>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={insertImage} data-testid="rte-image-file" />
       </div>
       <div
         ref={ref}

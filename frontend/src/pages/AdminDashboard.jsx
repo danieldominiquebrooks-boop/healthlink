@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, Activity, Tags, BookOpen, Calendar, MessageSquare, Settings as SettingsIcon,
   Plus, Pencil, Trash2, LogOut, Check, X, Eye, ExternalLink, ShieldCheck,
-  Upload, Download, Image as ImageIcon,
+  Upload, Download, Image as ImageIcon, Star,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -108,7 +108,6 @@ const DEFAULTS = {
 
 const TABS = [
   { key: "providers", label: "Providers", icon: Users },
-  { key: "services", label: "Services", icon: Activity },
   { key: "categories", label: "Categories", icon: Tags },
   { key: "articles", label: "Articles", icon: BookOpen },
   { key: "events", label: "Events", icon: Calendar },
@@ -244,6 +243,16 @@ function EntityManager({ entity }) {
     }
   };
 
+  const toggleFeatured = async (item) => {
+    try {
+      await api.put(`/admin/providers/${item.id}`, { ...item, featured: !item.featured });
+      toast.success(item.featured ? "Removed from featured" : "Added to featured");
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
+
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importing, setImporting] = useState(false);
@@ -320,6 +329,10 @@ function EntityManager({ entity }) {
                   </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  {entity === "providers" && (
+                    <button onClick={() => toggleFeatured(item)} data-testid={`feature-providers-${i}`} title={item.featured ? "Remove from featured" : "Mark as featured"} className={`p-2 rounded-lg hover:bg-[#FDF7E7] ${item.featured ? "text-[#D4AF37]" : "text-slate-400"}`}>
+                    <Star size={16} fill={item.featured ? "#D4AF37" : "none"} /></button>
+                  )}
                   <button onClick={() => openEdit(item)} data-testid={`edit-${entity}-${i}`} className="p-2 rounded-lg hover:bg-[#FDF0EE] text-[#0F172A]"><Pencil size={16} /></button>
                   <button onClick={() => setDeleteId(item.id)} data-testid={`delete-${entity}-${i}`} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 size={16} /></button>
                 </div>

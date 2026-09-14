@@ -10,7 +10,6 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import Home from "@/pages/Home";
 import Directory from "@/pages/Directory";
 import ProviderDetail from "@/pages/ProviderDetail";
-import Services from "@/pages/Services";
 import Blog from "@/pages/Blog";
 import ArticleDetail from "@/pages/ArticleDetail";
 import Events from "@/pages/Events";
@@ -39,7 +38,6 @@ function App() {
                 <Route path="/" element={<Home />} />
                 <Route path="/directory" element={<Directory />} />
                 <Route path="/provider/:id" element={<ProviderDetail />} />
-                <Route path="/services" element={<Services />} />
                 <Route path="/blog" element={<Blog />} />
                 <Route path="/blog/:slug" element={<ArticleDetail />} />
                 <Route path="/events" element={<Events />} />

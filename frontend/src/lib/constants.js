@@ -6,7 +6,6 @@ export const ISLANDS = [
 
 export const NAV_LINKS = [
   { to: "/directory", label: "Directory" },
-  { to: "/services", label: "Services" },
   { to: "/blog", label: "Health Blog" },
   { to: "/events", label: "Events" },
   { to: "/reviews", label: "Reviews" },

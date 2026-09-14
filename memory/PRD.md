@@ -33,7 +33,10 @@ Responsive Caribbean healthcare directory web app for phone/tablet/desktop. Prov
 - Rich text article editor (headings, bold, italic, lists, links) in admin; rendered as HTML on public article pages.
 - Directory Map View (Leaflet/OpenStreetMap) plotting providers by lat/lng or island centroid; List/Map toggle.
 - Island selection centralized to a single header selector; in-section island filter bars removed; all sections scoped to the chosen island.
-- Fully responsive; custom SVG brand logo. Verified: backend pytest + full frontend E2E — 100% pass (iterations 1, 2 & 3).
+- Public Services section removed (Directory covers discovery); admin Services tab removed.
+- Admins can toggle a provider's Featured status directly from the list (star button).
+- Map pins include a "Get directions" link to Google Maps; rich text editor supports inline images in article bodies.
+- Fully responsive; custom SVG brand logo. Verified: backend pytest + full frontend E2E — 100% pass (iterations 1-4).
 
 ## Backlog
 - P1: Rich-text article editor; article categories management UI.
