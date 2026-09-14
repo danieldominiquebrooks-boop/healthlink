@@ -1,0 +1,114 @@
+{
+  "app_name": "My Healthcare Link",
+  "brand": "Horizon Health",
+  "tagline": "HEALTHCARE CLOSER TO YOU",
+  "logo_url": "https://customer-assets-0z36b82j.emergentagent.net/job_07ca726b-86d7-4ffc-9408-42ddb5b51f10/artifacts/rjt6ywrz_ChatGPT%20Image%20Sep%2014%2C%202026%2C%2001_27_03%20PM.png",
+  "design_strategy": {
+    "theme_type": "Hybrid Dark Hero / Warm Light Content",
+    "emotional_archetype": "Organic Trust & Professional Care with Caribbean warmth",
+    "hero_style": "Dark Ocean Navy (#0B132B) with Gold metallic highlights (#D4AF37), Blush Pink accents (#E89D93), glassmorphism cards, and subtle tropical palm silhouette textures.",
+    "content_style": "Light Warm Cream (#FAF7F2) background with crisp white cards, rich Navy (#0F172A) headings, delicate Blush Pink subtle borders, and Gold rating indicators.",
+    "caribbean_identity": "Every provider, article, event, and service is tagged by island (e.g. Barbados, Jamaica, Trinidad & Tobago, Saint Lucia, Bahamas, Cayman Islands, Grenada, Antigua & Barbuda) with a prominent global Island Filter Bar."
+  },
+  "color_palette": {
+    "navy_dark": "#0B132B",
+    "navy_surface": "#1C2541",
+    "navy_text": "#0F172A",
+    "blush_pink": "#E89D93",
+    "blush_pink_light": "#FDF0EE",
+    "gold_primary": "#D4AF37",
+    "gold_light": "#FDF7E7",
+    "warm_cream_bg": "#FAF7F2",
+    "card_bg_light": "#FFFFFF",
+    "border_light": "rgba(232, 157, 147, 0.2)",
+    "glass_dark_bg": "rgba(28, 37, 65, 0.75)"
+  },
+  "typography": {
+    "heading_font": "Outfit, sans-serif",
+    "body_font": "Plus Jakarta Sans, sans-serif",
+    "hero_heading": "text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white",
+    "section_heading": "text-2xl sm:text-3xl lg:text-4xl font-bold text-[#0F172A]",
+    "card_title": "text-lg font-semibold text-[#0F172A]",
+    "overline_label": "text-xs font-bold uppercase tracking-[0.2em] text-[#D4AF37]"
+  },
+  "layout_and_navigation": {
+    "header": {
+      "style": "Sticky header with Dark Navy background (bg-[#0B132B]/95 backdrop-blur-md) and subtle gold border bottom (border-b border-[#D4AF37]/30)",
+      "elements": [
+        "Brand Logo (Gold & Pink Cross with wordmark My HealthcareLink)",
+        "Global Island Filter Dropdown selector",
+        "Navigation Links (Directory, Services, Health Blog, Events, Reviews)",
+        "Search Trigger",
+        "Admin Dashboard toggle button",
+        "Primary Action CTA ('Book Appointment' / 'Add Listing')"
+      ]
+    },
+    "hero": {
+      "style": "Deep Dark Navy gradient container with subtle palm watermarks, glassmorphism hero card, live stats counter (e.g. 1,200+ Verified Caribbean Providers, 12 Islands Covered), and quick multi-criteria search bar (Keyword, Category, Island, Specialty)."
+    },
+    "island_filter_bar": {
+      "style": "Sticky sub-header or high-visibility pill carousel featuring all Caribbean territories with active state highlighted in Gold (#D4AF37) with Blush Pink badges."
+    },
+    "sections_hierarchy": [
+      "A. Hero with Search & Island Filter Bar",
+      "B. Category Quick-Links Grid (Specialties, Clinics, Wellness, Diagnostics, Telehealth)",
+      "C. Featured Healthcare Providers Carousel / Bento Grid with Ratings & Island Badges",
+      "D. Health Information & Articles Section with Island Tagging",
+      "E. Upcoming Healthcare Events & Workshops Carousel",
+      "F. Community Reviews & Testimonials Carousel (Admin Approved)",
+      "G. Horizon Health Caribbean Expansion Banner",
+      "H. Footer with Navy Background, Gold Branding, Island Directory links, and Newsletter Signup"
+    ]
+  },
+  "interactive_components": {
+    "provider_card": {
+      "design": "Clean white card with soft pink/gold border on hover, doctor photo, verified checkmark, island badge, specialty tag, star rating, in-network pill badge, direct contact buttons, and 'Book Appointment' modal trigger."
+    },
+    "admin_dashboard": {
+      "access": "Accessible via header toggle with secure passcode or tab switch",
+      "tabs": [
+        "Providers Management (Add / Edit / Deactivate / In-Network Status)",
+        "Services Catalog Management",
+        "Categories & Niches Setup",
+        "Articles & Blog Editor",
+        "Healthcare Events Manager",
+        "Review Moderation System (Approve / Reject visitor submitted reviews)"
+      ]
+    },
+    "reviews_modal": {
+      "design": "Public review submission form for providers with star rating input, verified patient toggle, island selector, and confirmation banner indicating admin review approval step."
+    }
+  },
+  "image_assets": {
+    "logo_asset": "https://customer-assets-0z36b82j.emergentagent.net/job_07ca726b-86d7-4ffc-9408-42ddb5b51f10/artifacts/rjt6ywrz_ChatGPT%20Image%20Sep%2014%2C%202026%2C%2001_27_03%20PM.png",
+    "hero_caribbean_bg": "https://images.unsplash.com/photo-1541417904950-b855846fe074?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTN8MHwxfHNlYXJjaHwxfHxjYXJpYmJlYW4lMjBiZWFjaCUyMHBhbG0lMjB0cmVlcyUyMGFlcmlhbHxlbnwwfHx8fDE3ODk0MDc2MTZ8MA&ixlib=rb-4.1.0&q=85",
+    "doctors": [
+      "https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTN8MHwxfHNlYXJjaHwxfHx0cm9waWNhbCUyMHdlbGxuZXNzJTIwaGVhbHRoY2FyZSUyMG1lZGljYWwlMjBjbGluaWMlMjBwYXRpZW50JTIwZG9jdG9yfGVufDB8fHx8MTc4OTQwNzYxMHww&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTN8MHwxfHNlYXJjaHwzfHx0cm9waWNhbCUyMHdlbGxuZXNzJTIwaGVhbHRoY2FyZSUyMG1lZGljYWwlMjBjbGluaWMlMjBwYXRpZW50JTIwZG9jdG9yfGVufDB8fHx8MTc4OTQwNzYxMHww&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1758691461935-202e2ef6b69f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTN8MHwxfHNlYXJjaHw0fHx0cm9waWNhbCUyMHdlbGxuZXNzJTIwaGVhbHRoY2FyZSUyMG1lZGljYWwlMjBjbGluaWMlMjBwYXRpZW50JTIwZG9jdG9yfGVufDB8fHx8MTc4OTQwNzYxMHww&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1638202993928-7267aad84c31?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTN8MHwxfHNlYXJjaHwyfHx0cm9waWNhbCUyMHdlbGxuZXNzJTIwaGVhbHRoY2FyZSUyMG1lZGljYWwlMjBjbGluaWMlMjBwYXRpZW50JTIwZG9jdG9yfGVufDB8fHx8MTc4OTQwNzYxMHww&ixlib=rb-4.1.0&q=85"
+    ],
+    "health_events": "https://images.unsplash.com/photo-1603478804503-dc909c7f5ce5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjh8MHwxfHNlYXJjaHw0fHxtZWRpY2FsJTIwY29uZmVyZW5jZSUyMGhlYWx0aCUyMGV2ZW50JTIwd29ya3Nob3B8ZW58MHx8fHwxNzg5NDA3NjE2fDA&ixlib=rb-4.1.0&q=85",
+    "clinic_exterior": "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzV8MHwxfHNlYXJjaHwxfHxob3NwaXRhbCUyMGJ1aWxkaW5nJTIwbW9kZXJuJTIwZXh0ZXJpb3IlMjBtZWRpY2FsfGVufDB8fHx8MTc4OTQwNzYxNnww&ixlib=rb-4.1.0&q=85"
+  },
+  "testing_requirements": {
+    "data_testid_policy": "All interactive elements, forms, input filters, provider cards, modal buttons, admin table action buttons, and review submission triggers MUST feature clear role-based kebab-case data-testid attributes.",
+    "example_testids": [
+      "data-testid='main-header'",
+      "data-testid='island-filter-bar'",
+      "data-testid='global-search-input'",
+      "data-testid='provider-card-1'",
+      "data-testid='book-appointment-btn-1'",
+      "data-testid='submit-review-btn'",
+      "data-testid='admin-dashboard-toggle'",
+      "data-testid='admin-providers-tab'"
+    ]
+  },
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Follow the exact hybrid aesthetic: Dark Navy hero with Gold and Blush Pink highlights, followed by Warm Cream content sections with crisp white cards.",
+    "Ensure every provider, article, event, and service includes an assigned island tag and respects the active Island Filter state.",
+    "Do not use transparent dropdown backgrounds. Use solid or blurred high-contrast surfaces for all menus and modals.",
+    "Implement full CRUD logic for Admin Dashboard (Providers, Services, Categories, Blog Articles, Events, and Review Moderation).",
+    "All interactive elements MUST include explicit data-testid attributes."
+  ]
+}
