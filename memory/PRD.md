@@ -29,7 +29,11 @@ Responsive Caribbean healthcare directory web app for phone/tablet/desktop. Prov
 - Provider/Article/Event photo upload via Emergent object storage (POST /api/admin/upload, GET /api/files/*).
 - Bulk CSV provider import (POST /api/admin/providers/bulk) with downloadable template.
 - Saved Providers: visitor favourites (localStorage), heart toggles on cards + detail, header counter, /saved page.
-- Fully responsive; custom SVG brand logo. Verified: backend pytest + full frontend E2E — 100% pass (iterations 1 & 2).
+- Light/Dark mode toggle (header, persisted via localStorage) across all content areas.
+- Rich text article editor (headings, bold, italic, lists, links) in admin; rendered as HTML on public article pages.
+- Directory Map View (Leaflet/OpenStreetMap) plotting providers by lat/lng or island centroid; List/Map toggle.
+- Island selection centralized to a single header selector; in-section island filter bars removed; all sections scoped to the chosen island.
+- Fully responsive; custom SVG brand logo. Verified: backend pytest + full frontend E2E — 100% pass (iterations 1, 2 & 3).
 
 ## Backlog
 - P1: Rich-text article editor; article categories management UI.

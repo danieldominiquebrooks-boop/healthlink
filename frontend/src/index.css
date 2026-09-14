@@ -115,3 +115,59 @@ h1, h2, h3, h4, h5, .font-display {
   50% { transform: translateY(-10px); }
 }
 .hl-float { animation: hl-float 6s ease-in-out infinite; }
+
+/* ---- Rich text (editor + article body) ---- */
+.hl-prose h2 { font-family: 'Outfit', sans-serif; font-size: 1.5rem; font-weight: 700; margin: 1.2rem 0 0.6rem; color: var(--navy-text); }
+.hl-prose h3 { font-family: 'Outfit', sans-serif; font-size: 1.2rem; font-weight: 700; margin: 1rem 0 0.5rem; color: var(--navy-text); }
+.hl-prose p { margin: 0.6rem 0; }
+.hl-prose ul { list-style: disc; padding-left: 1.4rem; margin: 0.6rem 0; }
+.hl-prose ol { list-style: decimal; padding-left: 1.4rem; margin: 0.6rem 0; }
+.hl-prose li { margin: 0.25rem 0; }
+.hl-prose a { color: #D4AF37; text-decoration: underline; }
+.hl-prose:empty:before { content: "Write your article here…"; color: #9aa3b2; }
+
+/* ---- Dark mode ---- */
+.dark {
+  --background: 222 47% 6%;
+  --foreground: 210 30% 92%;
+  --card: 222 40% 12%;
+  --card-foreground: 210 30% 92%;
+  --popover: 222 42% 11%;
+  --popover-foreground: 210 30% 92%;
+  --primary: 7 65% 74%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 30% 90%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 222 30% 18%;
+  --muted-foreground: 215 20% 68%;
+  --accent: 46 65% 52%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 222 25% 22%;
+  --input: 222 22% 26%;
+  --ring: 7 65% 74%;
+}
+
+.dark body { background: #070c1a; color: #E7ECF5; }
+.dark .hl-prose h2, .dark .hl-prose h3 { color: #E7ECF5; }
+.dark .hl-prose { color: #cbd5e1; }
+
+.dark .hl-card { background: #121a30; border-color: rgba(212,175,55,0.18); }
+.dark .hl-card:hover { border-color: rgba(212,175,55,0.5); box-shadow: 0 18px 40px -18px rgba(0,0,0,0.6); }
+
+.dark .bg-white { background-color: #121a30 !important; }
+.dark .bg-white\/60 { background-color: rgba(12,18,38,0.5) !important; }
+.dark .bg-\[\#FAF7F2\] { background-color: #0d1428 !important; }
+.dark .bg-\[\#FDF0EE\] { background-color: rgba(232,157,147,0.14) !important; }
+.dark .bg-\[\#FDF7E7\] { background-color: rgba(212,175,55,0.14) !important; }
+
+.dark .text-\[\#0F172A\] { color: #E7ECF5 !important; }
+
+.dark .border-slate-100 { border-color: rgba(255,255,255,0.08) !important; }
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(255,255,255,0.08) !important; }
+.dark .border-\[\#E89D93\]\/15 { border-color: rgba(212,175,55,0.16) !important; }
+.dark .bg-slate-100 { background-color: #1a2440 !important; }
+
+/* Leaflet popup in dark */
+.dark .leaflet-popup-content-wrapper, .dark .leaflet-popup-tip { background: #121a30; color: #E7ECF5; }

@@ -1,0 +1,28 @@
+{
+  "summary": "Iteration 3 tested 4 new features (dark mode toggle, in-section island filter removal, header-scoped island filtering, Directory List/Map view + Leaflet markers, rich text article editor with public HTML rendering, provider lat/lng fields) plus regression on iteration 2. Backend: 14/14 pytest passed (new test_iter3.py + regression test_new_features.py). Frontend Playwright: theme toggle adds/removes 'dark' class on <html>, persists to localStorage hl_theme, survives reload, toggles back to light; no island-filter-bar/pill on Directory/Services/Blog/Events; header island selector applies scoping and 'directory-island-note' appears/disappears with 'Showing: Barbados'; Map view renders providers-map Leaflet container with clustered markers on Barbados, marker popup shows provider name and 'View profile' link; admin Articles → Add exposes RichTextEditor (field-content, field-content-area, rte-h2, rte-bold, rte-ul, rte-link), typing + H2 + bold produces HTML which persists and is rendered on /blog/:slug (<h2> and <strong>/<b> in the DOM, no raw tag text); provider form has field-latitude and field-longitude. Demo providers Dr. Ayana Clarke (Barbados) and Sunrise Cardiology (Jamaica) both carry coordinates.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter3.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/test_reports/pytest/iter3.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "IslandFilterBar.jsx component file is still present in /app/frontend/src/components/ but no longer imported/used anywhere. Safe to delete to reduce dead code.",
+    "RichTextEditor uses document.execCommand which is deprecated in the HTML spec (still works in Chromium). Consider migrating to a modern editor (Tiptap/Lexical) or Selection/Range API for long-term maintenance.",
+    "Article get endpoint (GET /api/articles/{slug}) does not filter by published=true (unlike GET /api/articles list). This let our test read an unpublished article by slug — could unintentionally expose drafts. Consider adding published check on public detail endpoint.",
+    "ProvidersMap uses a static jitter fallback for providers without coords, which can lead to overlapping markers when >25 providers share one island; consider Leaflet.markercluster or a real geocode.",
+    "ProvidersMap MapContainer key uses `${island}-${providers.length}` which force-remounts the map on every filter change (drops user pan/zoom) — acceptable but could be optimized with useMap invalidateSize/fitBounds."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter3.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin: danieldominiquebrooks@gmail.com / HealthLink@2026! (verified)",
+  "seed_data_creation": "Created and cleaned up: TEST_ITER3_Coords, TEST_ITER3_NoCoords, TEST_ITER3_BULK (providers); TEST_ITER3_RichArticle, TEST_ITER3_UI_Rich (articles). All deleted at test tear-down. Demo providers Dr. Ayana Clarke and Sunrise Cardiology preserved.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "New testids added this iteration: theme-toggle, theme-toggle-mobile; directory-island-note, hero-island-note; view-list-btn, view-map-btn, providers-map; rte-h2, rte-h3, rte-bold, rte-ul, rte-link, field-content, field-content-area; field-latitude, field-longitude. Admin tabs use pattern admin-tab-<key> (providers/services/categories/articles/events/reviews). Admin login inputs are admin-email-input and admin-password-input. Article slugs are auto-generated on POST (slugify(title) + '-' + id[:6]) — never assume a fixed slug; read it from the create response or /api/admin/articles. Article GET-by-slug does NOT enforce published — draft is publicly reachable by slug.",
+  "rca of the issue": "N/A — no defects found."
+}

@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { BookOpen, MapPin } from "lucide-react";
 import { Layout } from "@/components/Layout";
 import { PageHero } from "@/components/PageHero";
-import { IslandFilterBar } from "@/components/IslandFilterBar";
 import api from "@/lib/api";
 import { useIsland } from "@/context/IslandContext";
 
@@ -20,8 +19,7 @@ export default function Blog() {
 
   return (
     <Layout>
-      <PageHero title="Health Blog" subtitle="Articles, educational material and announcements to help you live healthier." testid="blog-hero" />
-      <IslandFilterBar />
+      <PageHero title="Health Blog" subtitle="Articles, educational material and announcements to help you live healthier." testid="blog-hero" note={island !== "All Islands" ? island : null} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {articles.length ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

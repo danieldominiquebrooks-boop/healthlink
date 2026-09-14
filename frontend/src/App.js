@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { IslandProvider } from "@/context/IslandContext";
 import { SavedProvider } from "@/context/SavedContext";
+import { ThemeProvider } from "@/context/ThemeContext";
 
 import Home from "@/pages/Home";
 import Directory from "@/pages/Directory";
@@ -29,7 +30,8 @@ function ProtectedRoute({ children }) {
 function App() {
   return (
     <div className="App">
-      <AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
         <IslandProvider>
           <SavedProvider>
             <BrowserRouter>
@@ -52,7 +54,8 @@ function App() {
             <Toaster position="top-right" richColors />
           </SavedProvider>
         </IslandProvider>
-      </AuthProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </div>
   );
 }

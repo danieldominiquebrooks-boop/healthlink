@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { Activity, HeartPulse, Stethoscope, Microscope, Video, Search } from "lucide-react";
 import { Layout } from "@/components/Layout";
 import { PageHero } from "@/components/PageHero";
-import { IslandFilterBar } from "@/components/IslandFilterBar";
 import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
 import { useIsland } from "@/context/IslandContext";
@@ -24,8 +23,7 @@ export default function Services() {
 
   return (
     <Layout>
-      <PageHero title="Healthcare Services" subtitle="Explore available services and care categories across the Caribbean." testid="services-hero" />
-      <IslandFilterBar />
+      <PageHero title="Healthcare Services" subtitle="Explore available services and care categories across the Caribbean." testid="services-hero" note={island !== "All Islands" ? island : null} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="relative max-w-md mb-8">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#E89D93]" />

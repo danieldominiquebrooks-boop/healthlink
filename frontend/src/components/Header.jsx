@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X, ChevronDown, MapPin, Search, Heart } from "lucide-react";
+import { Menu, X, ChevronDown, MapPin, Search, Heart, Sun, Moon } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { NAV_LINKS, ISLANDS } from "@/lib/constants";
 import { useIsland } from "@/context/IslandContext";
 import { useSaved } from "@/context/SavedContext";
+import { useTheme } from "@/context/ThemeContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +17,7 @@ export function Header() {
   const [open, setOpen] = useState(false);
   const { island, setIsland } = useIsland();
   const { count } = useSaved();
+  const { theme, toggle } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const islandOptions = ["All Islands", ...ISLANDS];
@@ -84,6 +86,15 @@ export function Header() {
               <Search size={17} />
             </button>
 
+            <button
+              onClick={toggle}
+              data-testid="theme-toggle"
+              className="flex items-center justify-center w-9 h-9 rounded-lg bg-white/8 border border-white/10 text-slate-100 hover:border-[#D4AF37]/50 transition-colors"
+              aria-label="Toggle light and dark mode"
+            >
+              {theme === "dark" ? <Sun size={17} className="text-[#D4AF37]" /> : <Moon size={17} />}
+            </button>
+
             <Link
               to="/saved"
               data-testid="header-saved-link"
@@ -129,6 +140,13 @@ export function Header() {
           >
             <Heart size={15} className={count > 0 ? "text-[#E89D93]" : ""} fill={count > 0 ? "#E89D93" : "none"} /> Saved{count > 0 ? ` (${count})` : ""}
           </Link>
+          <button
+            onClick={toggle}
+            data-testid="theme-toggle-mobile"
+            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-slate-200 hover:bg-white/5 text-sm font-medium"
+          >
+            {theme === "dark" ? <Sun size={15} className="text-[#D4AF37]" /> : <Moon size={15} />} {theme === "dark" ? "Light mode" : "Dark mode"}
+          </button>
           <div className="pt-2 border-t border-white/10">
             <p className="px-3 pt-2 pb-1 text-xs uppercase tracking-widest text-[#D4AF37]">Island</p>
             <div className="grid grid-cols-2 gap-1">

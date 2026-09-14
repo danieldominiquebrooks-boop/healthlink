@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Search, SlidersHorizontal, ShieldCheck } from "lucide-react";
+import { Search, SlidersHorizontal, ShieldCheck, LayoutGrid, Map as MapIcon, MapPin } from "lucide-react";
 import { Layout } from "@/components/Layout";
-import { IslandFilterBar } from "@/components/IslandFilterBar";
 import { ProviderCard } from "@/components/ProviderCard";
+import { ProvidersMap } from "@/components/ProvidersMap";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,7 @@ export default function Directory() {
   const [specialty, setSpecialty] = useState("all");
   const [inNetwork, setInNetwork] = useState(false);
   const [sort, setSort] = useState("relevant");
+  const [view, setView] = useState("list");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -52,6 +53,11 @@ export default function Directory() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="font-display text-3xl sm:text-4xl font-bold text-white">Find Healthcare</h1>
           <p className="text-slate-300 mt-2">Browse trusted providers and services across the Caribbean.</p>
+          {island !== "All Islands" && (
+            <span className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full hl-glass text-sm font-medium text-[#D4AF37]" data-testid="directory-island-note">
+              <MapPin size={14} /> Showing: {island}
+            </span>
+          )}
           <div className="mt-6 flex items-center gap-2 p-2 rounded-2xl hl-glass max-w-2xl">
             <Search size={18} className="text-[#E89D93] ml-2" />
             <input
@@ -64,8 +70,6 @@ export default function Directory() {
           </div>
         </div>
       </section>
-
-      <IslandFilterBar />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-8">
         {/* FILTERS */}
@@ -105,19 +109,39 @@ export default function Directory() {
 
         {/* RESULTS */}
         <div>
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
             <p className="text-sm text-muted-foreground" data-testid="results-count">
               {loading ? "Searching..." : `${providers.length} provider${providers.length !== 1 ? "s" : ""} found`}
             </p>
-            <Select value={sort} onValueChange={setSort}>
-              <SelectTrigger className="w-40" data-testid="sort-select"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="relevant">Most relevant</SelectItem>
-                <SelectItem value="rating">Highest rated</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <div className="flex bg-[#FAF7F2] rounded-lg p-1 border border-[#E89D93]/15">
+                <button onClick={() => setView("list")} data-testid="view-list-btn" className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "list" ? "bg-[#0B132B] text-white" : "text-[#0F172A]"}`}>
+                  <LayoutGrid size={15} /> List
+                </button>
+                <button onClick={() => setView("map")} data-testid="view-map-btn" className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "map" ? "bg-[#0B132B] text-white" : "text-[#0F172A]"}`}>
+                  <MapIcon size={15} /> Map
+                </button>
+              </div>
+              <Select value={sort} onValueChange={setSort}>
+                <SelectTrigger className="w-40" data-testid="sort-select"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="relevant">Most relevant</SelectItem>
+                  <SelectItem value="rating">Highest rated</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          {providers.length ? (
+
+          {view === "map" ? (
+            providers.length ? (
+              <ProvidersMap providers={providers} island={island} />
+            ) : !loading && (
+              <div className="rounded-2xl border-2 border-dashed border-[#E89D93]/25 py-20 text-center">
+                <MapIcon size={30} className="mx-auto text-[#E89D93]/60" />
+                <p className="mt-3 text-muted-foreground">No providers to map for this selection.</p>
+              </div>
+            )
+          ) : providers.length ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
               {providers.map((p, i) => <ProviderCard key={p.id} provider={p} index={i} />)}
             </div>

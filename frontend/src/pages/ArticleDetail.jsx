@@ -29,7 +29,7 @@ export default function ArticleDetail() {
         <p className="text-muted-foreground mt-3">By {article.author}</p>
         <img src={article.image_url || FALLBACK} alt={article.title} className="w-full h-64 sm:h-80 object-cover rounded-2xl mt-6" onError={(e) => { e.currentTarget.src = FALLBACK; }} />
         {article.excerpt && <p className="text-lg text-[#0F172A] font-medium mt-6 leading-relaxed">{article.excerpt}</p>}
-        <div className="mt-5 text-[#334155] leading-relaxed whitespace-pre-wrap">{article.content}</div>
+        <div className="hl-prose mt-5 text-[#334155] leading-relaxed" dangerouslySetInnerHTML={{ __html: article.content || "" }} />
       </article>
     </Layout>
   );

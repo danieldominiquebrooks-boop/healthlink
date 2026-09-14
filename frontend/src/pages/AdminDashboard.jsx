@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { StarRating } from "@/components/StarRating";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -49,6 +50,8 @@ const SCHEMAS = {
     { key: "email", label: "Email" },
     { key: "website", label: "Website", full: true },
     { key: "address", label: "Address", full: true },
+    { key: "latitude", label: "Latitude (optional · for map)", type: "number" },
+    { key: "longitude", label: "Longitude (optional · for map)", type: "number" },
     { key: "in_network", label: "In-Network", type: "switch" },
     { key: "accepting_new_patients", label: "Accepting new patients", type: "switch" },
     { key: "verified", label: "Verified", type: "switch" },
@@ -76,7 +79,7 @@ const SCHEMAS = {
     { key: "author", label: "Author" },
     { key: "image_url", label: "Image", type: "image", full: true },
     { key: "excerpt", label: "Excerpt", type: "textarea", full: true },
-    { key: "content", label: "Content", type: "textarea", full: true, rows: 8 },
+    { key: "content", label: "Content", type: "richtext", full: true },
     { key: "published", label: "Published", type: "switch" },
   ],
   events: [
@@ -210,6 +213,8 @@ function EntityManager({ entity }) {
         v = Array.isArray(v) ? v : String(v || "").split(",").map((x) => x.trim()).filter(Boolean);
       } else if (s.type === "switch") {
         v = !!v;
+      } else if (s.type === "number") {
+        v = (v === "" || v === null || v === undefined) ? null : Number(v);
       } else {
         v = v ?? "";
       }
@@ -403,7 +408,11 @@ function Field({ field, value, onChange }) {
   return (
     <div className={full ? "sm:col-span-2" : ""}>
       {field.type !== "switch" && <Label className="mb-1.5 block text-sm">{field.label}{field.req && <span className="text-[#E89D93]"> *</span>}</Label>}
-      {field.type === "textarea" ? (
+      {field.type === "richtext" ? (
+        <RichTextEditor value={value || ""} onChange={onChange} testid={`field-${field.key}`} />
+      ) : field.type === "number" ? (
+        <Input type="number" step="any" data-testid={`field-${field.key}`} value={value ?? ""} onChange={(e) => onChange(e.target.value)} />
+      ) : field.type === "textarea" ? (
         <Textarea data-testid={`field-${field.key}`} rows={field.rows || 3} value={value || ""} onChange={(e) => onChange(e.target.value)} />
       ) : field.type === "switch" ? (
         <div className="flex items-center justify-between rounded-lg bg-[#FAF7F2] px-3 py-2.5 h-full">

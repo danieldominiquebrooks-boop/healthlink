@@ -162,6 +162,8 @@ class ProviderBase(BaseModel):
     island: Optional[str] = ""
     country: Optional[str] = ""
     image_url: Optional[str] = ""
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     services: List[str] = Field(default_factory=list)
     in_network: bool = False
     accepting_new_patients: bool = True
@@ -471,9 +473,9 @@ async def list_articles(island: Optional[str] = None, category: Optional[str] = 
 
 @api_router.get("/articles/{slug}")
 async def get_article(slug: str):
-    doc = await db.articles.find_one({"slug": slug}, {"_id": 0})
+    doc = await db.articles.find_one({"slug": slug, "published": True}, {"_id": 0})
     if not doc:
-        doc = await db.articles.find_one({"id": slug}, {"_id": 0})
+        doc = await db.articles.find_one({"id": slug, "published": True}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Article not found")
     return doc
@@ -652,6 +654,7 @@ async def bulk_import_providers(file: UploadFile = File(...), admin: dict = Depe
     reader = csv.DictReader(io.StringIO(text))
     bool_fields = {"in_network", "featured", "verified", "accepting_new_patients", "active"}
     list_fields = {"niches", "services"}
+    float_fields = {"latitude", "longitude"}
     valid_keys = set(ProviderBase(name="x").model_dump().keys())
     created = 0
     errors = []
@@ -669,6 +672,11 @@ async def bulk_import_providers(file: UploadFile = File(...), admin: dict = Depe
                 doc[k] = val.lower() in ("true", "yes", "1", "y")
             elif k in list_fields:
                 doc[k] = [x.strip() for x in re.split(r"[;|]", val) if x.strip()]
+            elif k in float_fields:
+                try:
+                    doc[k] = float(val) if val else None
+                except ValueError:
+                    doc[k] = None
             else:
                 doc[k] = val
         doc["name"] = name
