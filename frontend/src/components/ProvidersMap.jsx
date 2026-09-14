@@ -39,6 +39,19 @@ function coordsFor(p, index) {
   return [base[0] + jy, base[1] + jx];
 }
 
+function directionsHref(p) {
+  const lat = parseFloat(p.latitude);
+  const lng = parseFloat(p.longitude);
+  let dest;
+  if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+    dest = `${lat},${lng}`;
+  } else {
+    const addr = [p.name, p.address, p.island].filter(Boolean).join(", ");
+    dest = encodeURIComponent(addr || p.island || "");
+  }
+  return `https://www.google.com/maps/dir/?api=1&destination=${dest}`;
+}
+
 export function ProvidersMap({ providers, island }) {
   const selected = island && island !== "All Islands" && ISLAND_COORDS[island];
   const center = selected ? ISLAND_COORDS[island] : [14.6, -66.5];
@@ -61,7 +74,7 @@ export function ProvidersMap({ providers, island }) {
                 <p className="text-slate-500 text-xs !m-0">{p.island}</p>
                 <div className="flex flex-col gap-0.5 mt-1">
                   <Link to={`/provider/${p.id}`} className="text-[#B8912B] font-semibold text-xs underline">View profile →</Link>
-                  <a href={`https://www.google.com/maps/dir/?api=1&destination=${pos[0]},${pos[1]}`} target="_blank" rel="noreferrer" className="text-[#E89D93] font-semibold text-xs underline">Get directions →</a>
+                  <a href={directionsHref(p)} target="_blank" rel="noreferrer" className="text-[#E89D93] font-semibold text-xs underline">Get directions →</a>
                 </div>
               </div>
             </Popup>

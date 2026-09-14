@@ -38,7 +38,9 @@ Responsive Caribbean healthcare directory web app for phone/tablet/desktop. Prov
 - Map pins include a "Get directions" link to Google Maps; rich text editor supports inline images in article bodies.
 - Installable PWA ("Get the app" button): manifest + service worker + icons; native install on Android/Chrome, Add-to-Home-Screen guidance on iOS.
 - Theme-aware header banner (light/dark) driven by the header toggle; article preview before publishing; large brand logo in the home hero.
-- Fully responsive; custom SVG brand logo. Verified: backend pytest + full frontend E2E — 100% pass (iterations 1-5).
+- Install nudge (one-time mobile banner); offline-ready service worker (cache-fallback) + offline banner; map/detail directions fall back to written address when coordinates are missing.
+- Brand logo recreated as transparent interlocking gold+pink crosses with theme-aware wordmark (legible on light & dark).
+- Fully responsive; custom SVG brand logo. Verified: backend pytest + full frontend E2E — 100% pass (iterations 1-6).
 
 ## Backlog
 - P1: Rich-text article editor; article categories management UI.

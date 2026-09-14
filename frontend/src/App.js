@@ -6,6 +6,9 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { IslandProvider } from "@/context/IslandContext";
 import { SavedProvider } from "@/context/SavedContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { InstallProvider } from "@/context/InstallContext";
+import { InstallNudge } from "@/components/InstallNudge";
+import { OfflineBanner } from "@/components/OfflineBanner";
 
 import Home from "@/pages/Home";
 import Directory from "@/pages/Directory";
@@ -33,6 +36,7 @@ function App() {
         <AuthProvider>
         <IslandProvider>
           <SavedProvider>
+            <InstallProvider>
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Home />} />
@@ -50,6 +54,9 @@ function App() {
               </Routes>
             </BrowserRouter>
             <Toaster position="top-right" richColors />
+            <InstallNudge />
+            <OfflineBanner />
+            </InstallProvider>
           </SavedProvider>
         </IslandProvider>
         </AuthProvider>

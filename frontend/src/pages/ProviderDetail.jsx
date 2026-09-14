@@ -145,6 +145,21 @@ export default function ProviderDetail() {
                   </Button>
                 </a>
               )}
+              {(provider.address || (provider.latitude && provider.longitude)) && (
+                <a
+                  href={
+                    provider.latitude && provider.longitude
+                      ? `https://www.google.com/maps/dir/?api=1&destination=${provider.latitude},${provider.longitude}`
+                      : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([provider.name, provider.address, provider.island].filter(Boolean).join(", "))}`
+                  }
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Button variant="outline" className="w-full mt-2 border-[#D4AF37]/50 text-[#B8912B] hover:bg-[#FDF7E7]" data-testid="directions-btn">
+                    <MapPin size={15} className="mr-1.5" /> Get directions
+                  </Button>
+                </a>
+              )}
               <Button onClick={() => setModalOpen(true)} variant="outline" className="w-full mt-2 border-[#E89D93] text-[#d47f74] hover:bg-[#FDF0EE]" data-testid="sidebar-review-btn">
                 <CalendarPlus size={15} className="mr-1.5" /> Leave a review
               </Button>
