@@ -5,7 +5,8 @@ import os
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, Query, UploadFile, File
+from fastapi.responses import Response
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
@@ -15,6 +16,9 @@ import logging
 import jwt
 import bcrypt
 import re
+import csv
+import io
+import requests
 from datetime import datetime, timezone, timedelta
 from bson import ObjectId
 
@@ -49,6 +53,49 @@ def new_id():
 def slugify(text: str) -> str:
     s = re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')
     return s or new_id()[:8]
+
+# ----------------------------------------------------------------------------
+# Object storage
+# ----------------------------------------------------------------------------
+STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
+STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
+EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+APP_NAME = "healthlink"
+storage_key = None
+
+MIME_TYPES = {
+    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+    "gif": "image/gif", "webp": "image/webp",
+}
+
+def init_storage(force: bool = False):
+    global storage_key
+    if storage_key and not force:
+        return storage_key
+    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+    resp.raise_for_status()
+    storage_key = resp.json()["storage_key"]
+    return storage_key
+
+def put_object(path: str, data: bytes, content_type: str) -> dict:
+    key = init_storage()
+    url = f"{STORAGE_URL}/objects/{path}"
+    resp = requests.put(url, headers={"X-Storage-Key": key, "Content-Type": content_type}, data=data, timeout=120)
+    if resp.status_code == 404:
+        key = init_storage(force=True)
+        resp = requests.put(url, headers={"X-Storage-Key": key, "Content-Type": content_type}, data=data, timeout=120)
+    resp.raise_for_status()
+    return resp.json()
+
+def get_object(path: str):
+    key = init_storage()
+    url = f"{STORAGE_URL}/objects/{path}"
+    resp = requests.get(url, headers={"X-Storage-Key": key}, timeout=60)
+    if resp.status_code == 404:
+        key = init_storage(force=True)
+        resp = requests.get(url, headers={"X-Storage-Key": key}, timeout=60)
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
 # ----------------------------------------------------------------------------
 # Auth helpers
@@ -561,6 +608,77 @@ async def delete_review(rid: str, admin: dict = Depends(get_current_admin)):
     return {"ok": True}
 
 # ----------------------------------------------------------------------------
+# File upload & serving
+# ----------------------------------------------------------------------------
+@api_router.post("/admin/upload")
+async def upload_image(file: UploadFile = File(...), admin: dict = Depends(get_current_admin)):
+    ext = file.filename.rsplit(".", 1)[-1].lower() if file.filename and "." in file.filename else ""
+    if ext not in MIME_TYPES:
+        raise HTTPException(status_code=400, detail="Only image files are allowed (jpg, png, gif, webp).")
+    data = await file.read()
+    if len(data) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image must be under 8MB.")
+    content_type = file.content_type or MIME_TYPES[ext]
+    path = f"{APP_NAME}/providers/{uuid.uuid4()}.{ext}"
+    try:
+        result = put_object(path, data, content_type)
+    except Exception as e:
+        logger.error(f"Upload failed: {e}")
+        raise HTTPException(status_code=502, detail="Image upload failed. Please try again.")
+    stored = result.get("path", path)
+    await db.files.insert_one({
+        "id": new_id(), "storage_path": stored, "original_filename": file.filename,
+        "content_type": content_type, "created_at": now_iso(),
+    })
+    return {"path": stored, "url": f"/api/files/{stored}"}
+
+@api_router.get("/files/{path:path}")
+async def serve_file(path: str):
+    record = await db.files.find_one({"storage_path": path})
+    try:
+        data, content_type = get_object(path)
+    except Exception:
+        raise HTTPException(status_code=404, detail="File not found")
+    ct = (record.get("content_type") if record else None) or content_type
+    return Response(content=data, media_type=ct, headers={"Cache-Control": "public, max-age=86400"})
+
+@api_router.post("/admin/providers/bulk")
+async def bulk_import_providers(file: UploadFile = File(...), admin: dict = Depends(get_current_admin)):
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode("latin-1")
+    reader = csv.DictReader(io.StringIO(text))
+    bool_fields = {"in_network", "featured", "verified", "accepting_new_patients", "active"}
+    list_fields = {"niches", "services"}
+    valid_keys = set(ProviderBase(name="x").model_dump().keys())
+    created = 0
+    errors = []
+    for idx, row in enumerate(reader, start=2):
+        name = (row.get("name") or "").strip()
+        if not name:
+            errors.append(f"Row {idx}: missing name — skipped")
+            continue
+        doc = ProviderBase(name=name).model_dump()
+        for k, raw_val in row.items():
+            if k not in valid_keys or raw_val is None:
+                continue
+            val = str(raw_val).strip()
+            if k in bool_fields:
+                doc[k] = val.lower() in ("true", "yes", "1", "y")
+            elif k in list_fields:
+                doc[k] = [x.strip() for x in re.split(r"[;|]", val) if x.strip()]
+            else:
+                doc[k] = val
+        doc["name"] = name
+        doc["id"] = new_id()
+        doc["created_at"] = now_iso()
+        await db.providers.insert_one(doc)
+        created += 1
+    return {"created": created, "errors": errors}
+
+# ----------------------------------------------------------------------------
 # Startup
 # ----------------------------------------------------------------------------
 async def seed_admin():
@@ -586,6 +704,11 @@ async def startup():
     await db.providers.create_index("id", unique=True)
     await db.reviews.create_index("provider_id")
     await seed_admin()
+    try:
+        init_storage()
+        logger.info("Storage initialized")
+    except Exception as e:
+        logger.error(f"Storage init failed: {e}")
 
 app.include_router(api_router)
 

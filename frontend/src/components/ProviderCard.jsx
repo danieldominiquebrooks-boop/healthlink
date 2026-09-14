@@ -1,11 +1,19 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { MapPin, BadgeCheck, ShieldCheck } from "lucide-react";
+import { MapPin, BadgeCheck, ShieldCheck, Heart } from "lucide-react";
 import { StarRating } from "@/components/StarRating";
+import { useSaved } from "@/context/SavedContext";
 
 const FALLBACK = "https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?crop=entropy&cs=srgb&fm=jpg&q=85&w=400";
 
 export function ProviderCard({ provider, index = 0 }) {
+  const { isSaved, toggle } = useSaved();
+  const saved = isSaved(provider.id);
+  const onSave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggle(provider.id);
+  };
   return (
     <Link
       to={`/provider/${provider.id}`}
@@ -26,6 +34,14 @@ export function ProviderCard({ provider, index = 0 }) {
             </span>
           )}
         </div>
+        <button
+          onClick={onSave}
+          data-testid={`save-provider-${index}`}
+          aria-label={saved ? "Remove from saved" : "Save provider"}
+          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
+        >
+          <Heart size={16} className={saved ? "text-[#E89D93]" : "text-slate-400"} fill={saved ? "#E89D93" : "none"} />
+        </button>
         {provider.island && (
           <span className="absolute bottom-3 left-3 flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#0B132B]/80 text-[#E89D93] text-[10px] font-semibold backdrop-blur-sm">
             <MapPin size={10} /> {provider.island}

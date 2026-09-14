@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { IslandProvider } from "@/context/IslandContext";
+import { SavedProvider } from "@/context/SavedContext";
 
 import Home from "@/pages/Home";
 import Directory from "@/pages/Directory";
@@ -14,6 +15,7 @@ import ArticleDetail from "@/pages/ArticleDetail";
 import Events from "@/pages/Events";
 import EventDetail from "@/pages/EventDetail";
 import Reviews from "@/pages/Reviews";
+import Saved from "@/pages/Saved";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
 
@@ -29,23 +31,26 @@ function App() {
     <div className="App">
       <AuthProvider>
         <IslandProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/directory" element={<Directory />} />
-              <Route path="/provider/:id" element={<ProviderDetail />} />
-              <Route path="/services" element={<Services />} />
-              <Route path="/blog" element={<Blog />} />
-              <Route path="/blog/:slug" element={<ArticleDetail />} />
-              <Route path="/events" element={<Events />} />
-              <Route path="/events/:id" element={<EventDetail />} />
-              <Route path="/reviews" element={<Reviews />} />
-              <Route path="/admin" element={<AdminLogin />} />
-              <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </BrowserRouter>
-          <Toaster position="top-right" richColors />
+          <SavedProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/directory" element={<Directory />} />
+                <Route path="/provider/:id" element={<ProviderDetail />} />
+                <Route path="/services" element={<Services />} />
+                <Route path="/blog" element={<Blog />} />
+                <Route path="/blog/:slug" element={<ArticleDetail />} />
+                <Route path="/events" element={<Events />} />
+                <Route path="/events/:id" element={<EventDetail />} />
+                <Route path="/reviews" element={<Reviews />} />
+                <Route path="/saved" element={<Saved />} />
+                <Route path="/admin" element={<AdminLogin />} />
+                <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </BrowserRouter>
+            <Toaster position="top-right" richColors />
+          </SavedProvider>
         </IslandProvider>
       </AuthProvider>
     </div>

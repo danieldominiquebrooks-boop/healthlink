@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Users, Activity, Tags, BookOpen, Calendar, MessageSquare, Settings as SettingsIcon,
   Plus, Pencil, Trash2, LogOut, Check, X, Eye, ExternalLink, ShieldCheck,
+  Upload, Download, Image as ImageIcon,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,11 @@ import { toast } from "sonner";
 
 const ISLAND_OPTS = ISLANDS;
 
+const PROVIDER_TEMPLATE = `name,specialty,category,island,description,phone,email,website,address,niches,services,in_network,featured,verified,accepting_new_patients,image_url
+Dr. Jane Doe,Cardiology,Doctors,Barbados,Experienced cardiologist serving the community,+1246555000,jane@example.com,https://example.com,Bridgetown,Heart Health;Preventive Care,Consultation;ECG;Stress Test,true,true,true,true,
+Sunrise Wellness Clinic,General Practice,Clinics,Jamaica,Full-service family clinic,+1876555111,info@sunrise.com,,Kingston,Family Medicine;Pediatrics,General Consultation;Vaccinations,false,false,true,true,
+`;
+
 // Field schemas per entity
 const SCHEMAS = {
   providers: [
@@ -35,7 +41,7 @@ const SCHEMAS = {
     { key: "specialty", label: "Specialty" },
     { key: "category", label: "Category" },
     { key: "island", label: "Island", type: "island" },
-    { key: "image_url", label: "Image URL", full: true },
+    { key: "image_url", label: "Image", type: "image", full: true },
     { key: "description", label: "Description", type: "textarea", full: true },
     { key: "niches", label: "Niches (comma separated)", type: "list", full: true },
     { key: "services", label: "Services (comma separated)", type: "list", full: true },
@@ -68,7 +74,7 @@ const SCHEMAS = {
     { key: "category", label: "Category" },
     { key: "island", label: "Island", type: "island" },
     { key: "author", label: "Author" },
-    { key: "image_url", label: "Image URL", full: true },
+    { key: "image_url", label: "Image", type: "image", full: true },
     { key: "excerpt", label: "Excerpt", type: "textarea", full: true },
     { key: "content", label: "Content", type: "textarea", full: true, rows: 8 },
     { key: "published", label: "Published", type: "switch" },
@@ -80,7 +86,7 @@ const SCHEMAS = {
     { key: "location", label: "Location" },
     { key: "island", label: "Island", type: "island" },
     { key: "organizer", label: "Organizer" },
-    { key: "image_url", label: "Image URL", full: true },
+    { key: "image_url", label: "Image", type: "image", full: true },
     { key: "description", label: "Description", type: "textarea", full: true },
     { key: "registration_info", label: "Registration info" },
     { key: "registration_url", label: "Registration URL" },
@@ -233,6 +239,34 @@ function EntityManager({ entity }) {
     }
   };
 
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+
+  const downloadTemplate = () => {
+    const blob = new Blob([PROVIDER_TEMPLATE], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "providers_template.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const runImport = async () => {
+    if (!importFile) return toast.error("Choose a CSV file first.");
+    setImporting(true);
+    const fd = new FormData();
+    fd.append("file", importFile);
+    try {
+      const { data } = await api.post("/admin/providers/bulk", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setImportResult(data);
+      toast.success(`Imported ${data.created} provider(s).`);
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    } finally { setImporting(false); }
+  };
+
   const titleKey = entity === "articles" ? "title" : "name";
 
   return (
@@ -242,9 +276,16 @@ function EntityManager({ entity }) {
           <h2 className="font-display text-2xl font-bold text-[#0F172A] capitalize">{entity}</h2>
           <p className="text-sm text-muted-foreground">{items.length} total</p>
         </div>
-        <Button onClick={openNew} data-testid={`add-${entity}-btn`} className="bg-[#0B132B] hover:bg-[#1C2541] text-white">
-          <Plus size={16} className="mr-1.5" /> Add {entity.slice(0, -1)}
-        </Button>
+        <div className="flex items-center gap-2">
+          {entity === "providers" && (
+            <Button variant="outline" onClick={() => { setImportResult(null); setImportFile(null); setImportOpen(true); }} data-testid="import-csv-btn" className="border-[#D4AF37]/50 text-[#B8912B] hover:bg-[#FDF7E7]">
+              <Upload size={16} className="mr-1.5" /> Import CSV
+            </Button>
+          )}
+          <Button onClick={openNew} data-testid={`add-${entity}-btn`} className="bg-[#0B132B] hover:bg-[#1C2541] text-white">
+            <Plus size={16} className="mr-1.5" /> Add {entity.slice(0, -1)}
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -316,6 +357,41 @@ function EntityManager({ entity }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="sm:max-w-lg" data-testid="import-csv-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-display">Import providers from CSV</DialogTitle>
+            <DialogDescription>Upload a CSV to add many providers at once. Download the template to see the required columns.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Button type="button" variant="outline" onClick={downloadTemplate} data-testid="download-template-btn" className="border-[#D4AF37]/50 text-[#B8912B]">
+              <Download size={15} className="mr-1.5" /> Download CSV template
+            </Button>
+            <div>
+              <Label className="mb-1.5 block text-sm">CSV file</Label>
+              <input type="file" accept=".csv,text/csv" onChange={(e) => setImportFile(e.target.files?.[0] || null)} data-testid="import-file-input" className="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#0B132B] file:text-white file:cursor-pointer" />
+              <p className="text-xs text-muted-foreground mt-1.5">Lists like niches/services use semicolons (Heart Health;Preventive Care). Booleans: true/false.</p>
+            </div>
+            {importResult && (
+              <div className="rounded-lg bg-[#FAF7F2] p-3 text-sm" data-testid="import-result">
+                <p className="font-semibold text-emerald-600">✓ {importResult.created} provider(s) imported.</p>
+                {importResult.errors?.length > 0 && (
+                  <ul className="mt-2 text-amber-600 list-disc pl-5 max-h-28 overflow-y-auto">
+                    {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportOpen(false)}>Close</Button>
+            <Button onClick={runImport} disabled={importing} data-testid="run-import-btn" className="bg-[#0B132B] hover:bg-[#1C2541] text-white">
+              {importing ? "Importing..." : "Import"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -334,6 +410,8 @@ function Field({ field, value, onChange }) {
           <Label className="cursor-pointer text-sm">{field.label}</Label>
           <Switch data-testid={`field-${field.key}`} checked={!!value} onCheckedChange={onChange} />
         </div>
+      ) : field.type === "image" ? (
+        <ImageField value={value} onChange={onChange} testid={`field-${field.key}`} />
       ) : field.type === "island" ? (
         <Select value={value || ""} onValueChange={onChange}>
           <SelectTrigger data-testid={`field-${field.key}`}><SelectValue placeholder="Select island" /></SelectTrigger>
@@ -351,6 +429,47 @@ function Field({ field, value, onChange }) {
       ) : (
         <Input data-testid={`field-${field.key}`} value={listVal || ""} onChange={(e) => onChange(e.target.value)} />
       )}
+    </div>
+  );
+}
+
+function ImageField({ value, onChange, testid }) {
+  const [uploading, setUploading] = useState(false);
+  const ref = useRef();
+  const handle = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const { data } = await api.post("/admin/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      onChange(`${process.env.REACT_APP_BACKEND_URL}${data.url}`);
+      toast.success("Image uploaded");
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    } finally {
+      setUploading(false);
+      if (ref.current) ref.current.value = "";
+    }
+  };
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-3">
+        {value ? (
+          <img src={value} alt="" className="w-16 h-16 rounded-xl object-cover border border-[#E89D93]/30" />
+        ) : (
+          <div className="w-16 h-16 rounded-xl bg-[#FAF7F2] border border-dashed border-[#E89D93]/40 flex items-center justify-center text-[#E89D93]"><ImageIcon size={20} /></div>
+        )}
+        <div className="flex-1">
+          <input ref={ref} type="file" accept="image/*" onChange={handle} className="hidden" data-testid={`${testid}-file`} />
+          <Button type="button" variant="outline" onClick={() => ref.current?.click()} disabled={uploading} data-testid={`${testid}-upload`} className="border-[#E89D93]/50 text-[#d47f74]">
+            <Upload size={15} className="mr-1.5" /> {uploading ? "Uploading..." : "Upload image"}
+          </Button>
+          {value && <button type="button" onClick={() => onChange("")} className="ml-2 text-xs text-red-500">Remove</button>}
+        </div>
+      </div>
+      <Input value={value || ""} onChange={(e) => onChange(e.target.value)} placeholder="…or paste an image URL" data-testid={testid} />
     </div>
   );
 }

@@ -2,13 +2,14 @@ import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   MapPin, Phone, Mail, Globe, BadgeCheck, ShieldCheck, ArrowLeft,
-  CalendarPlus, MessageSquarePlus, UserCheck,
+  CalendarPlus, MessageSquarePlus, UserCheck, Heart,
 } from "lucide-react";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StarRating } from "@/components/StarRating";
 import { ReviewModal } from "@/components/ReviewModal";
+import { useSaved } from "@/context/SavedContext";
 import api from "@/lib/api";
 
 const FALLBACK = "https://images.unsplash.com/photo-1622253692010-333f2da6031d?crop=entropy&cs=srgb&fm=jpg&q=85&w=800";
@@ -18,6 +19,7 @@ export default function ProviderDetail() {
   const [provider, setProvider] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const { isSaved, toggle } = useSaved();
 
   const loadReviews = () => api.get("/reviews", { params: { provider_id: id } }).then((r) => setReviews(r.data)).catch(() => {});
 
@@ -56,6 +58,14 @@ export default function ProviderDetail() {
                 {provider.accepting_new_patients && <span className="flex items-center gap-1"><UserCheck size={14} className="text-emerald-400" /> Accepting new patients</span>}
               </div>
             </div>
+            <button
+              onClick={() => toggle(provider.id)}
+              data-testid="save-provider-detail"
+              className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl hl-glass text-white text-sm font-medium hover:border-[#D4AF37]/60 transition-colors"
+            >
+              <Heart size={16} className={isSaved(provider.id) ? "text-[#E89D93]" : "text-slate-300"} fill={isSaved(provider.id) ? "#E89D93" : "none"} />
+              {isSaved(provider.id) ? "Saved" : "Save"}
+            </button>
           </div>
         </div>
       </section>
