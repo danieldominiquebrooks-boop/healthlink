@@ -1,6 +1,6 @@
 import React from "react";
 
-// Crosses-only mark (transparent). Real brand asset.
+// Crosses-only mark (transparent PNG of the brand crosses).
 export function LogoMark({ size = 40, className = "" }) {
   return (
     <img
@@ -13,16 +13,23 @@ export function LogoMark({ size = 40, className = "" }) {
   );
 }
 
-// Full lockup. `dark` picks the version whose wordmark is legible on the surface:
-// light surfaces use the navy wordmark; dark surfaces use the white wordmark.
+// Crosses mark + a crisp TEXT wordmark (theme-aware). The wordmark is real text
+// so letter rendering stays sharp on every screen.
 export function Logo({ dark = true, className = "" }) {
+  const word = dark ? "text-white" : "text-[#0F172A]";
   return (
-    <img
-      src={dark ? "/logo-dark.png" : "/logo-light.png"}
-      alt="My Healthcare Link — Healthcare Closer To You"
-      className={className}
-      style={{ height: 46, width: "auto" }}
-      draggable={false}
-    />
+    <div className={`flex items-center gap-2.5 ${className}`} data-testid="brand-logo">
+      <LogoMark size={42} />
+      <div className="leading-none select-none">
+        <div className={`font-display font-semibold text-[12px] ${word}`}>My</div>
+        <div className="font-display font-extrabold text-[18px] sm:text-[20px] tracking-tight mt-[1px]">
+          <span className={word}>Healthcare</span>
+          <span className="text-[#E89D93]"> Link</span>
+        </div>
+        <div className="text-[7px] font-semibold tracking-[0.22em] text-[#D4AF37] mt-[3px]">
+          HEALTHCARE CLOSER TO YOU
+        </div>
+      </div>
+    </div>
   );
 }
