@@ -41,7 +41,7 @@ export default function EventDetail() {
           <aside className="hl-card p-5 h-fit space-y-3.5 text-sm">
             {ev.date && <Detail icon={Calendar} label="Date" value={ev.date} />}
             {ev.time && <Detail icon={Clock} label="Time" value={ev.time} />}
-            {(ev.location || ev.island) && <Detail icon={MapPin} label="Location" value={`${ev.location || ""}${ev.island ? (ev.location ? ", " : "") + ev.island : ""}`} />}
+            {(ev.location || ev.country) && <Detail icon={MapPin} label="Location" value={`${ev.location || ""}${ev.country ? (ev.location ? ", " : "") + (ev.region ? ev.region + ", " : "") + ev.country : ""}`} />}
             {ev.organizer && <Detail icon={User} label="Organizer" value={ev.organizer} />}
             {ev.registration_info && <Detail icon={Ticket} label="Registration" value={ev.registration_info} />}
             {ev.registration_url && (

@@ -55,7 +55,7 @@ export default function ProviderDetail() {
               <p className="text-[#E89D93] font-semibold text-lg mt-1">{provider.specialty}</p>
               <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-slate-300">
                 {provider.review_count > 0 && <StarRating value={provider.rating} showValue count={provider.review_count} />}
-                {provider.island && <span className="flex items-center gap-1"><MapPin size={14} className="text-[#D4AF37]" /> {provider.island}</span>}
+                {provider.country && <span className="flex items-center gap-1"><MapPin size={14} className="text-[#D4AF37]" /> {provider.region ? `${provider.region}, ${provider.country}` : provider.country}</span>}
                 {provider.accepting_new_patients && <span className="flex items-center gap-1"><UserCheck size={14} className="text-emerald-400" /> Accepting new patients</span>}
               </div>
             </div>
@@ -151,7 +151,7 @@ export default function ProviderDetail() {
                   href={
                     provider.latitude && provider.longitude
                       ? `https://www.google.com/maps/dir/?api=1&destination=${provider.latitude},${provider.longitude}`
-                      : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([provider.name, provider.address, provider.island].filter(Boolean).join(", "))}`
+                      : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([provider.name, provider.address, provider.region, provider.country].filter(Boolean).join(", "))}`
                   }
                   target="_blank"
                   rel="noreferrer"

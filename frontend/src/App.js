@@ -3,7 +3,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { IslandProvider } from "@/context/IslandContext";
+import { LocationProvider } from "@/context/LocationContext";
 import { SavedProvider } from "@/context/SavedContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { InstallProvider } from "@/context/InstallContext";
@@ -34,7 +34,7 @@ function App() {
     <div className="App">
       <ThemeProvider>
         <AuthProvider>
-        <IslandProvider>
+        <LocationProvider>
           <SavedProvider>
             <InstallProvider>
             <BrowserRouter>
@@ -58,7 +58,7 @@ function App() {
             <OfflineBanner />
             </InstallProvider>
           </SavedProvider>
-        </IslandProvider>
+        </LocationProvider>
         </AuthProvider>
       </ThemeProvider>
     </div>

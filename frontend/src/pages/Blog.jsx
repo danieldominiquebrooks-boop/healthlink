@@ -4,22 +4,24 @@ import { BookOpen, MapPin } from "lucide-react";
 import { Layout } from "@/components/Layout";
 import { PageHero } from "@/components/PageHero";
 import api from "@/lib/api";
-import { useIsland } from "@/context/IslandContext";
+import { useLocation } from "@/context/LocationContext";
 
 const FALLBACK = "https://images.unsplash.com/photo-1505751172876-fa1923c5c528?w=600&q=80";
 
 export default function Blog() {
-  const { island } = useIsland();
+  const { country, region } = useLocation();
   const [articles, setArticles] = useState([]);
 
   useEffect(() => {
-    const p = island && island !== "All Islands" ? { island } : {};
+    const p = {};
+    if (country && country !== "All Countries") p.country = country;
+    if (region && region !== "All Parishes/Islands") p.region = region;
     api.get("/articles", { params: p }).then((r) => setArticles(r.data)).catch(() => setArticles([]));
-  }, [island]);
+  }, [country, region]);
 
   return (
     <Layout>
-      <PageHero title="Health Blog" subtitle="Articles, educational material and announcements to help you live healthier." testid="blog-hero" note={island !== "All Islands" ? island : null} />
+      <PageHero title="Health Blog" subtitle="Articles, educational material and announcements to help you live healthier." testid="blog-hero" note={country !== "All Countries" ? (region !== "All Parishes/Islands" ? `${region}, ${country}` : country) : null} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {articles.length ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -32,7 +34,7 @@ export default function Blog() {
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-bold uppercase tracking-widest text-[#D4AF37]">{a.category || "Article"}</span>
                     {a.featured && <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#D4AF37] text-[#0B132B]" data-testid={`article-featured-${i}`}>★ Featured</span>}
-                    {a.island && <span className="text-[11px] text-muted-foreground flex items-center gap-1"><MapPin size={10} /> {a.island}</span>}
+                    {a.country && <span className="text-[11px] text-muted-foreground flex items-center gap-1"><MapPin size={10} /> {a.region ? `${a.region}, ${a.country}` : a.country}</span>}
                   </div>
                   <h3 className="font-display font-bold text-[#0F172A] mt-2 leading-snug">{a.title}</h3>
                   <p className="text-sm text-muted-foreground mt-2 line-clamp-3">{a.excerpt}</p>

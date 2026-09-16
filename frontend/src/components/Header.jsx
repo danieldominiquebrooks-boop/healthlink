@@ -3,8 +3,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X, ChevronDown, MapPin, Search, Heart, Sun, Moon } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { InstallButton } from "@/components/InstallButton";
-import { NAV_LINKS, ISLANDS } from "@/lib/constants";
-import { useIsland } from "@/context/IslandContext";
+import { NAV_LINKS, COUNTRY_NAMES, regionsFor, ALL_COUNTRIES, ALL_REGIONS } from "@/lib/constants";
+import { useLocation as useAppLocation } from "@/context/LocationContext";
 import { useSaved } from "@/context/SavedContext";
 import { useTheme } from "@/context/ThemeContext";
 import {
@@ -16,12 +16,13 @@ import {
 
 export function Header() {
   const [open, setOpen] = useState(false);
-  const { island, setIsland } = useIsland();
+  const { country, setCountry, region, setRegion } = useAppLocation();
   const { count } = useSaved();
   const { theme, toggle } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
-  const islandOptions = ["All Islands", ...ISLANDS];
+  const countryOptions = [ALL_COUNTRIES, ...COUNTRY_NAMES];
+  const regionOptions = [ALL_REGIONS, ...regionsFor(country)];
 
   const dark = theme === "dark";
   const iconBtn = dark
@@ -64,27 +65,53 @@ export function Header() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  data-testid="island-selector-trigger"
+                  data-testid="country-selector-trigger"
                   className={`hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${iconBtn}`}
                 >
                   <MapPin size={15} className="text-[#E89D93]" />
-                  <span className="max-w-[130px] truncate">{island}</span>
+                  <span className="max-w-[130px] truncate">{country}</span>
                   <ChevronDown size={14} />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
-                {islandOptions.map((opt) => (
+                {countryOptions.map((opt) => (
                   <DropdownMenuItem
                     key={opt}
-                    data-testid={`island-option-${opt.replace(/\s|&/g, "-")}`}
-                    onClick={() => setIsland(opt)}
-                    className={island === opt ? "bg-[#FDF0EE] text-[#0F172A] font-semibold" : ""}
+                    data-testid={`country-option-${opt.replace(/\s|&/g, "-")}`}
+                    onClick={() => setCountry(opt)}
+                    className={country === opt ? "bg-[#FDF0EE] text-[#0F172A] font-semibold" : ""}
                   >
                     {opt}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {country !== ALL_COUNTRIES && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    data-testid="region-selector-trigger"
+                    className={`hidden md:flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${iconBtn}`}
+                  >
+                    <span className="max-w-[130px] truncate">{region}</span>
+                    <ChevronDown size={14} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+                  {regionOptions.map((opt) => (
+                    <DropdownMenuItem
+                      key={opt}
+                      data-testid={`region-option-${opt.replace(/\s|&|\/|\./g, "-")}`}
+                      onClick={() => setRegion(opt)}
+                      className={region === opt ? "bg-[#FDF0EE] text-[#0F172A] font-semibold" : ""}
+                    >
+                      {opt}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
             <button
               data-testid="header-search-btn"
@@ -158,18 +185,34 @@ export function Header() {
             {dark ? <Sun size={15} className="text-[#D4AF37]" /> : <Moon size={15} />} {dark ? "Light mode" : "Dark mode"}
           </button>
           <div className={`pt-2 border-t ${dark ? "border-white/10" : "border-black/10"}`}>
-            <p className="px-3 pt-2 pb-1 text-xs uppercase tracking-widest text-[#D4AF37]">Island</p>
+            <p className="px-3 pt-2 pb-1 text-xs uppercase tracking-widest text-[#D4AF37]">Country</p>
             <div className="grid grid-cols-2 gap-1">
-              {["All Islands", ...ISLANDS].map((opt) => (
+              {[ALL_COUNTRIES, ...COUNTRY_NAMES].map((opt) => (
                 <button
                   key={opt}
-                  onClick={() => { setIsland(opt); setOpen(false); }}
-                  className={`text-left px-3 py-2 rounded-lg text-sm ${island === opt ? "bg-[#E89D93] text-white" : navInactive}`}
+                  onClick={() => { setCountry(opt); }}
+                  className={`text-left px-3 py-2 rounded-lg text-sm ${country === opt ? "bg-[#E89D93] text-white" : navInactive}`}
                 >
                   {opt}
                 </button>
               ))}
             </div>
+            {country !== ALL_COUNTRIES && (
+              <>
+                <p className="px-3 pt-3 pb-1 text-xs uppercase tracking-widest text-[#D4AF37]">Parish / Island</p>
+                <div className="grid grid-cols-2 gap-1">
+                  {[ALL_REGIONS, ...regionsFor(country)].map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => { setRegion(opt); setOpen(false); }}
+                      className={`text-left px-3 py-2 rounded-lg text-sm ${region === opt ? "bg-[#D4AF37] text-[#0B132B]" : navInactive}`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

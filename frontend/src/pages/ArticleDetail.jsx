@@ -23,7 +23,7 @@ export default function ArticleDetail() {
         <Link to="/blog" className="inline-flex items-center gap-1.5 text-[#E89D93] hover:text-[#d47f74] text-sm mb-6"><ArrowLeft size={16} /> Back to blog</Link>
         <div className="flex items-center gap-2 mb-3">
           <span className="text-xs font-bold uppercase tracking-widest text-[#D4AF37]">{article.category || "Article"}</span>
-          {article.island && <span className="text-xs text-muted-foreground flex items-center gap-1"><MapPin size={11} /> {article.island}</span>}
+          {article.country && <span className="text-xs text-muted-foreground flex items-center gap-1"><MapPin size={11} /> {article.region ? `${article.region}, ${article.country}` : article.country}</span>}
         </div>
         <h1 className="font-display text-3xl sm:text-4xl font-bold text-[#0F172A] leading-tight">{article.title}</h1>
         <p className="text-muted-foreground mt-3">By {article.author}</p>

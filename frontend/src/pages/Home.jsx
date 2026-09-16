@@ -10,7 +10,7 @@ import { ProviderCard } from "@/components/ProviderCard";
 import { LogoMark } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
-import { useIsland } from "@/context/IslandContext";
+import { useLocation } from "@/context/LocationContext";
 import { StarRating } from "@/components/StarRating";
 
 const HERO_BG = "https://images.unsplash.com/photo-1541417904950-b855846fe074?crop=entropy&cs=srgb&fm=jpg&q=85&w=1600";
@@ -26,22 +26,24 @@ const CATEGORIES = [
 
 export default function Home() {
   const navigate = useNavigate();
-  const { island } = useIsland();
+  const { country, region } = useLocation();
   const [query, setQuery] = useState("");
   const [providers, setProviders] = useState([]);
   const [articles, setArticles] = useState([]);
   const [events, setEvents] = useState([]);
   const [reviews, setReviews] = useState([]);
-  const [stats, setStats] = useState({ providers: 0, islands_covered: 12, articles: 0, events: 0 });
+  const [stats, setStats] = useState({ providers: 0, countries_covered: 12, articles: 0, events: 0 });
 
   useEffect(() => {
-    const p = island && island !== "All Islands" ? { island } : {};
+    const p = {};
+    if (country && country !== "All Countries") p.country = country;
+    if (region && region !== "All Parishes/Islands") p.region = region;
     api.get("/providers", { params: { featured: true, ...p, limit: 6 } }).then((r) => setProviders(r.data)).catch(() => {});
     api.get("/articles", { params: { ...p, limit: 3 } }).then((r) => setArticles(r.data)).catch(() => {});
     api.get("/events", { params: { ...p, limit: 3 } }).then((r) => setEvents(r.data)).catch(() => {});
     api.get("/reviews", { params: { limit: 6 } }).then((r) => setReviews(r.data)).catch(() => {});
     api.get("/stats").then((r) => setStats(r.data)).catch(() => {});
-  }, [island]);
+  }, [country, region]);
 
   const doSearch = (e) => {
     e?.preventDefault();
@@ -70,7 +72,7 @@ export default function Home() {
               across the <span className="hl-blush-text">Caribbean</span>
             </h1>
             <p className="mt-5 text-lg text-slate-300 max-w-xl leading-relaxed">
-              Discover doctors, services, health information and events — closer to you, island by island.
+              Discover doctors, services, health information and events — closer to you, across every Caribbean country.
             </p>
 
             <form onSubmit={doSearch} className="mt-8 max-w-2xl">
@@ -94,7 +96,7 @@ export default function Home() {
             <div className="mt-10 flex flex-wrap gap-8">
               {[
                 { n: `${stats.providers}+`, l: "Verified Providers" },
-                { n: `${stats.islands_covered}`, l: "Islands Covered" },
+                { n: `${stats.countries_covered}`, l: "Countries Covered" },
                 { n: `${stats.articles}+`, l: "Health Articles" },
               ].map((s) => (
                 <div key={s.l}>
@@ -167,7 +169,7 @@ export default function Home() {
                 </div>
                 <div className="p-4 flex-1">
                   <h3 className="font-display font-bold text-[#0F172A] leading-snug">{ev.name}</h3>
-                  <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1"><MapPin size={12} /> {ev.location || ev.island}</p>
+                  <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1"><MapPin size={12} /> {ev.location || ev.country}</p>
                   <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{ev.description}</p>
                 </div>
               </Link>

@@ -159,7 +159,8 @@ class ProviderBase(BaseModel):
     email: Optional[str] = ""
     website: Optional[str] = ""
     address: Optional[str] = ""
-    island: Optional[str] = ""
+    country: Optional[str] = ""
+    region: Optional[str] = ""
     country: Optional[str] = ""
     image_url: Optional[str] = ""
     latitude: Optional[float] = None
@@ -182,7 +183,8 @@ class ServiceBase(BaseModel):
     name: str
     description: Optional[str] = ""
     category: Optional[str] = ""
-    island: Optional[str] = ""
+    country: Optional[str] = ""
+    region: Optional[str] = ""
     icon: Optional[str] = "activity"
     active: bool = True
 
@@ -191,7 +193,8 @@ class ArticleBase(BaseModel):
     excerpt: Optional[str] = ""
     content: Optional[str] = ""
     category: Optional[str] = ""
-    island: Optional[str] = ""
+    country: Optional[str] = ""
+    region: Optional[str] = ""
     image_url: Optional[str] = ""
     author: Optional[str] = "My Healthcare Link"
     published: bool = True
@@ -202,7 +205,8 @@ class EventBase(BaseModel):
     date: Optional[str] = ""
     time: Optional[str] = ""
     location: Optional[str] = ""
-    island: Optional[str] = ""
+    country: Optional[str] = ""
+    region: Optional[str] = ""
     description: Optional[str] = ""
     organizer: Optional[str] = ""
     registration_info: Optional[str] = ""
@@ -217,7 +221,8 @@ class ReviewCreate(BaseModel):
     rating: int = Field(ge=1, le=5)
     title: Optional[str] = ""
     comment: str
-    island: Optional[str] = ""
+    country: Optional[str] = ""
+    region: Optional[str] = ""
     verified_patient: bool = False
 
 class SettingsUpdate(BaseModel):
@@ -275,8 +280,8 @@ async def me(admin: dict = Depends(get_current_admin)):
 async def root():
     return {"message": "My Healthcare Link API"}
 
-@api_router.get("/islands")
-async def get_islands():
+@api_router.get("/countries")
+async def get_countries():
     return ISLANDS
 
 @api_router.get("/stats")
@@ -284,13 +289,13 @@ async def get_stats():
     providers = await db.providers.count_documents({"active": True})
     articles = await db.articles.count_documents({"published": True})
     events = await db.events.count_documents({"published": True})
-    islands = await db.providers.distinct("island", {"active": True})
-    islands = [i for i in islands if i]
+    countries = await db.providers.distinct("country", {"active": True})
+    countries = [i for i in countries if i]
     return {
         "providers": providers,
         "articles": articles,
         "events": events,
-        "islands_covered": len(islands) if islands else len(ISLANDS),
+        "countries_covered": len(countries) if countries else len(ISLANDS),
     }
 
 @api_router.get("/settings")
@@ -313,7 +318,8 @@ async def update_settings(payload: SettingsUpdate, admin: dict = Depends(get_cur
 # ----------------------------------------------------------------------------
 @api_router.get("/providers")
 async def list_providers(
-    island: Optional[str] = None,
+    country: Optional[str] = None,
+    region: Optional[str] = None,
     specialty: Optional[str] = None,
     category: Optional[str] = None,
     in_network: Optional[bool] = None,
@@ -324,8 +330,10 @@ async def list_providers(
     limit: int = 100,
 ):
     query = {"active": True}
-    if island and island != "All Islands":
-        query["island"] = island
+    if country and country != "All Countries":
+        query["country"] = country
+    if region and region != "All Parishes":
+        query["region"] = region
     if specialty:
         query["specialty"] = specialty
     if category:
@@ -420,10 +428,12 @@ async def delete_category(cid: str, admin: dict = Depends(get_current_admin)):
 # Services
 # ----------------------------------------------------------------------------
 @api_router.get("/services")
-async def list_services(island: Optional[str] = None, q: Optional[str] = None):
+async def list_services(country: Optional[str] = None, region: Optional[str] = None, q: Optional[str] = None):
     query = {"active": True}
-    if island and island != "All Islands":
-        query["island"] = island
+    if country and country != "All Countries":
+        query["country"] = country
+    if region and region != "All Parishes":
+        query["region"] = region
     if q:
         rx = {"$regex": re.escape(q), "$options": "i"}
         query["$or"] = [{"name": rx}, {"description": rx}, {"category": rx}]
@@ -461,10 +471,12 @@ async def delete_service(sid: str, admin: dict = Depends(get_current_admin)):
 # Articles / Blog
 # ----------------------------------------------------------------------------
 @api_router.get("/articles")
-async def list_articles(island: Optional[str] = None, category: Optional[str] = None, q: Optional[str] = None, limit: int = 100):
+async def list_articles(country: Optional[str] = None, region: Optional[str] = None, category: Optional[str] = None, q: Optional[str] = None, limit: int = 100):
     query = {"published": True}
-    if island and island != "All Islands":
-        query["island"] = island
+    if country and country != "All Countries":
+        query["country"] = country
+    if region and region != "All Parishes":
+        query["region"] = region
     if category:
         query["category"] = category
     if q:
@@ -514,10 +526,12 @@ async def delete_article(aid: str, admin: dict = Depends(get_current_admin)):
 # Events
 # ----------------------------------------------------------------------------
 @api_router.get("/events")
-async def list_events(island: Optional[str] = None, q: Optional[str] = None, limit: int = 100):
+async def list_events(country: Optional[str] = None, region: Optional[str] = None, q: Optional[str] = None, limit: int = 100):
     query = {"published": True}
-    if island and island != "All Islands":
-        query["island"] = island
+    if country and country != "All Countries":
+        query["country"] = country
+    if region and region != "All Parishes":
+        query["region"] = region
     if q:
         rx = {"$regex": re.escape(q), "$options": "i"}
         query["$or"] = [{"name": rx}, {"description": rx}, {"location": rx}]
@@ -713,6 +727,11 @@ async def startup():
     await db.users.create_index("email", unique=True)
     await db.providers.create_index("id", unique=True)
     await db.reviews.create_index("provider_id")
+    for coll in ("providers", "articles", "events", "reviews", "services"):
+        try:
+            await db[coll].update_many({"island": {"$exists": True}}, {"$rename": {"island": "country"}})
+        except Exception as e:
+            logger.error(f"Migration island->country on {coll} failed: {e}")
     await seed_admin()
     try:
         init_storage()

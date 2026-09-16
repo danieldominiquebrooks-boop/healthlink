@@ -49,9 +49,9 @@ export function ProviderCard({ provider, index = 0 }) {
         >
           <Heart size={16} className={saved ? "text-[#E89D93]" : "text-slate-400"} fill={saved ? "#E89D93" : "none"} />
         </button>
-        {provider.island && (
+        {provider.country && (
           <span className="absolute bottom-3 left-3 flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#0B132B]/80 text-[#E89D93] text-[10px] font-semibold backdrop-blur-sm">
-            <MapPin size={10} /> {provider.island}
+            <MapPin size={10} /> {provider.region ? `${provider.region}, ${provider.country}` : provider.country}
           </span>
         )}
       </div>

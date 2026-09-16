@@ -35,7 +35,8 @@ export function ReviewModal({ open, onOpenChange, provider }) {
         rating,
         title: title.trim(),
         comment: comment.trim(),
-        island: provider.island || "",
+        country: provider.country || "",
+        region: provider.region || "",
         verified_patient: verified,
       });
       toast.success(data.message || "Review submitted for approval.");

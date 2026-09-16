@@ -25,15 +25,13 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/context/AuthContext";
-import { ISLANDS } from "@/lib/constants";
+import { COUNTRY_NAMES, regionsFor } from "@/lib/constants";
 import api, { formatApiError } from "@/lib/api";
 import { toast } from "sonner";
 
-const ISLAND_OPTS = ISLANDS;
-
-const PROVIDER_TEMPLATE = `name,specialty,category,island,description,phone,email,website,address,niches,services,in_network,featured,verified,accepting_new_patients,image_url
-Dr. Jane Doe,Cardiology,Doctors,Barbados,Experienced cardiologist serving the community,+1246555000,jane@example.com,https://example.com,Bridgetown,Heart Health;Preventive Care,Consultation;ECG;Stress Test,true,true,true,true,
-Sunrise Wellness Clinic,General Practice,Clinics,Jamaica,Full-service family clinic,+1876555111,info@sunrise.com,,Kingston,Family Medicine;Pediatrics,General Consultation;Vaccinations,false,false,true,true,
+const PROVIDER_TEMPLATE = `name,specialty,category,country,region,description,phone,email,website,address,niches,services,in_network,featured,verified,accepting_new_patients,image_url
+Dr. Jane Doe,Cardiology,Doctors,Barbados,Christ Church,Experienced cardiologist serving the community,+1246555000,jane@example.com,https://example.com,Bridgetown,Heart Health;Preventive Care,Consultation;ECG;Stress Test,true,true,true,true,
+Sunrise Wellness Clinic,General Practice,Clinics,Jamaica,Kingston,Full-service family clinic,+1876555111,info@sunrise.com,,Kingston,Family Medicine;Pediatrics,General Consultation;Vaccinations,false,false,true,true,
 `;
 
 // Field schemas per entity
@@ -42,7 +40,8 @@ const SCHEMAS = {
     { key: "name", label: "Name", req: true },
     { key: "specialty", label: "Specialty" },
     { key: "category", label: "Category" },
-    { key: "island", label: "Island", type: "island" },
+    { key: "country", label: "Country", type: "country" },
+    { key: "region", label: "Parish / Island", type: "region" },
     { key: "image_url", label: "Image", type: "image", full: true },
     { key: "description", label: "Description", type: "textarea", full: true },
     { key: "niches", label: "Niches (comma separated)", type: "list", full: true },
@@ -63,7 +62,8 @@ const SCHEMAS = {
   services: [
     { key: "name", label: "Name", req: true },
     { key: "category", label: "Category" },
-    { key: "island", label: "Island", type: "island" },
+    { key: "country", label: "Country", type: "country" },
+    { key: "region", label: "Parish / Island", type: "region" },
     { key: "icon", label: "Icon", type: "select", options: ["activity", "heart", "stethoscope", "microscope", "video"] },
     { key: "description", label: "Description", type: "textarea", full: true },
     { key: "active", label: "Active", type: "switch" },
@@ -77,7 +77,8 @@ const SCHEMAS = {
   articles: [
     { key: "title", label: "Title", req: true, full: true },
     { key: "category", label: "Category" },
-    { key: "island", label: "Island", type: "island" },
+    { key: "country", label: "Country", type: "country" },
+    { key: "region", label: "Parish / Island", type: "region" },
     { key: "author", label: "Author" },
     { key: "image_url", label: "Image", type: "image", full: true },
     { key: "excerpt", label: "Excerpt", type: "textarea", full: true },
@@ -90,7 +91,8 @@ const SCHEMAS = {
     { key: "date", label: "Date (e.g. Apr 18, 2026)" },
     { key: "time", label: "Time (e.g. 9:00 AM - 4:00 PM)" },
     { key: "location", label: "Location" },
-    { key: "island", label: "Island", type: "island" },
+    { key: "country", label: "Country", type: "country" },
+    { key: "region", label: "Parish / Island", type: "region" },
     { key: "organizer", label: "Organizer" },
     { key: "image_url", label: "Image", type: "image", full: true },
     { key: "description", label: "Description", type: "textarea", full: true },
@@ -324,7 +326,7 @@ function EntityManager({ entity }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-[#0F172A] truncate">{item[titleKey]}</span>
-                    {item.island && <Badge>{item.island}</Badge>}
+                    {item.country && <Badge>{item.region ? `${item.region}, ${item.country}` : item.country}</Badge>}
                     {entity === "providers" && item.in_network && <Badge color="emerald">In-Network</Badge>}
                     {entity === "providers" && item.featured && <Badge color="gold">Featured</Badge>}
                     {(item.active === false || item.published === false) && <Badge color="slate">Hidden</Badge>}
@@ -357,7 +359,7 @@ function EntityManager({ entity }) {
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             {schema.map((s) => (
-              <Field key={s.key} field={s} value={form[s.key]} onChange={(v) => setField(s.key, v)} />
+              <Field key={s.key} field={s} value={form[s.key]} form={form} onChange={(v) => setField(s.key, v)} />
             ))}
           </div>
           <DialogFooter>
@@ -383,7 +385,7 @@ function EntityManager({ entity }) {
           <article className="pt-1">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xs font-bold uppercase tracking-widest text-[#D4AF37]">{form.category || "Article"}</span>
-              {form.island && <span className="text-xs text-muted-foreground">· {form.island}</span>}
+              {form.country && <span className="text-xs text-muted-foreground">· {form.region ? `${form.region}, ${form.country}` : form.country}</span>}
             </div>
             <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#0F172A] leading-tight">{form.title || "Untitled article"}</h1>
             <p className="text-muted-foreground mt-2 text-sm">By {form.author || "My Healthcare Link"}</p>
@@ -445,7 +447,7 @@ function EntityManager({ entity }) {
   );
 }
 
-function Field({ field, value, onChange }) {
+function Field({ field, value, onChange, form }) {
   const full = field.full || field.type === "textarea" || field.type === "switch";
   const listVal = field.type === "list" ? (Array.isArray(value) ? value.join(", ") : (value || "")) : value;
 
@@ -467,13 +469,27 @@ function Field({ field, value, onChange }) {
         </div>
       ) : field.type === "image" ? (
         <ImageField value={value} onChange={onChange} testid={`field-${field.key}`} />
-      ) : field.type === "island" ? (
+      ) : field.type === "country" ? (
         <Select value={value || ""} onValueChange={onChange}>
-          <SelectTrigger data-testid={`field-${field.key}`}><SelectValue placeholder="Select island" /></SelectTrigger>
+          <SelectTrigger data-testid={`field-${field.key}`}><SelectValue placeholder="Select country" /></SelectTrigger>
           <SelectContent>
-            {ISLAND_OPTS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            {COUNTRY_NAMES.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
           </SelectContent>
         </Select>
+      ) : field.type === "region" ? (
+        <>
+          <Input
+            data-testid={`field-${field.key}`}
+            list={`regions-${field.key}`}
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={form?.country ? "Select or type parish/island" : "Choose a country first"}
+            disabled={!form?.country}
+          />
+          <datalist id={`regions-${field.key}`}>
+            {regionsFor(form?.country).map((o) => <option key={o} value={o} />)}
+          </datalist>
+        </>
       ) : field.type === "select" ? (
         <Select value={value || ""} onValueChange={onChange}>
           <SelectTrigger data-testid={`field-${field.key}`}><SelectValue placeholder="Select" /></SelectTrigger>

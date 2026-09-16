@@ -11,11 +11,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import api from "@/lib/api";
-import { useIsland } from "@/context/IslandContext";
+import { useLocation } from "@/context/LocationContext";
 
 export default function Directory() {
   const [params, setParams] = useSearchParams();
-  const { island } = useIsland();
+  const { country, region } = useLocation();
   const [q, setQ] = useState(params.get("q") || "");
   const [providers, setProviders] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -36,7 +36,8 @@ export default function Directory() {
     setLoading(true);
     const p = {};
     if (q) p.q = q;
-    if (island && island !== "All Islands") p.island = island;
+    if (country && country !== "All Countries") p.country = country;
+    if (region && region !== "All Parishes/Islands") p.region = region;
     if (category !== "all") p.category = category;
     if (specialty !== "all") p.specialty = specialty;
     if (inNetwork) p.in_network = true;
@@ -45,7 +46,7 @@ export default function Directory() {
       api.get("/providers", { params: p }).then((r) => setProviders(r.data)).catch(() => setProviders([])).finally(() => setLoading(false));
     }, 250);
     return () => clearTimeout(t);
-  }, [q, island, category, specialty, inNetwork, sort]);
+  }, [q, country, region, category, specialty, inNetwork, sort]);
 
   return (
     <Layout>
@@ -53,9 +54,9 @@ export default function Directory() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="font-display text-3xl sm:text-4xl font-bold text-white">Find Healthcare</h1>
           <p className="text-slate-300 mt-2">Browse trusted providers and services across the Caribbean.</p>
-          {island !== "All Islands" && (
-            <span className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full hl-glass text-sm font-medium text-[#D4AF37]" data-testid="directory-island-note">
-              <MapPin size={14} /> Showing: {island}
+          {country !== "All Countries" && (
+            <span className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full hl-glass text-sm font-medium text-[#D4AF37]" data-testid="directory-location-note">
+              <MapPin size={14} /> Showing: {region !== "All Parishes/Islands" ? `${region}, ${country}` : country}
             </span>
           )}
           <div className="mt-6 flex items-center gap-2 p-2 rounded-2xl hl-glass max-w-2xl">
@@ -134,7 +135,7 @@ export default function Directory() {
 
           {view === "map" ? (
             providers.length ? (
-              <ProvidersMap providers={providers} island={island} />
+              <ProvidersMap providers={providers} country={country} />
             ) : !loading && (
               <div className="rounded-2xl border-2 border-dashed border-[#E89D93]/25 py-20 text-center">
                 <MapIcon size={30} className="mx-auto text-[#E89D93]/60" />

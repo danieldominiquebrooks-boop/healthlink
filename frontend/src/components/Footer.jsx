@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Logo } from "@/components/Logo";
-import { NAV_LINKS, ISLANDS } from "@/lib/constants";
+import { NAV_LINKS, COUNTRY_NAMES } from "@/lib/constants";
 import { Mail, Phone, Heart } from "lucide-react";
 
 export function Footer() {
@@ -26,12 +26,12 @@ export function Footer() {
             </ul>
           </div>
           <div>
-            <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">Islands</h4>
+            <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">Countries</h4>
             <ul className="space-y-2 text-sm grid grid-cols-1">
-              {ISLANDS.slice(0, 6).map((i) => (
+              {COUNTRY_NAMES.slice(0, 6).map((i) => (
                 <li key={i} className="text-slate-400">{i}</li>
               ))}
-              <li className="text-[#E89D93]">+ {ISLANDS.length - 6} more territories</li>
+              <li className="text-[#E89D93]">+ {COUNTRY_NAMES.length - 6} more countries</li>
             </ul>
           </div>
           <div>
