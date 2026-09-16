@@ -184,11 +184,28 @@ function EntityManager({ entity }) {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [selected, setSelected] = useState([]);
+  const [bulkConfirm, setBulkConfirm] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
+    setSelected([]);
     api.get(`/admin/${entity}`).then((r) => setItems(r.data)).catch(() => setItems([])).finally(() => setLoading(false));
   }, [entity]);
+
+  const toggleSelect = (id) => setSelected((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);
+  const toggleSelectAll = () => setSelected((cur) => cur.length === items.length ? [] : items.map((it) => it.id));
+
+  const bulkDelete = async () => {
+    try {
+      const { data } = await api.post("/admin/providers/bulk-delete", { ids: selected });
+      toast.success(`Deleted ${data.deleted} provider(s)`);
+      setBulkConfirm(false);
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -299,6 +316,11 @@ function EntityManager({ entity }) {
           <p className="text-sm text-muted-foreground">{items.length} total</p>
         </div>
         <div className="flex items-center gap-2">
+          {entity === "providers" && selected.length > 0 && (
+            <Button variant="outline" onClick={() => setBulkConfirm(true)} data-testid="bulk-delete-btn" className="border-red-300 text-red-600 hover:bg-red-50">
+              <Trash2 size={16} className="mr-1.5" /> Delete selected ({selected.length})
+            </Button>
+          )}
           {entity === "providers" && (
             <Button variant="outline" onClick={() => { setImportResult(null); setImportFile(null); setImportOpen(true); }} data-testid="import-csv-btn" className="border-[#D4AF37]/50 text-[#B8912B] hover:bg-[#FDF7E7]">
               <Upload size={16} className="mr-1.5" /> Import CSV
@@ -319,9 +341,18 @@ function EntityManager({ entity }) {
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-[#E89D93]/15 overflow-hidden">
+          {entity === "providers" && (
+            <label className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100 bg-[#FAF7F2] text-sm font-medium text-[#0F172A] cursor-pointer">
+              <input type="checkbox" data-testid="select-all-providers" checked={items.length > 0 && selected.length === items.length} onChange={toggleSelectAll} className="w-4 h-4 accent-[#E89D93]" />
+              {selected.length > 0 ? `${selected.length} selected` : "Select all"}
+            </label>
+          )}
           <div className="divide-y divide-slate-100">
             {items.map((item, i) => (
               <div key={item.id} data-testid={`${entity}-row-${i}`} className="flex items-center gap-4 px-4 py-3 hover:bg-[#FAF7F2] transition-colors">
+                {entity === "providers" && (
+                  <input type="checkbox" data-testid={`select-providers-${i}`} checked={selected.includes(item.id)} onChange={() => toggleSelect(item.id)} className="w-4 h-4 accent-[#E89D93] shrink-0" />
+                )}
                 {item.image_url && <img src={item.image_url} alt="" className="w-11 h-11 rounded-lg object-cover shrink-0" />}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -405,6 +436,19 @@ function EntityManager({ entity }) {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={remove} data-testid="confirm-delete-btn" className="bg-red-500 hover:bg-red-600">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkConfirm} onOpenChange={setBulkConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selected.length} provider(s)?</AlertDialogTitle>
+            <AlertDialogDescription>This permanently removes the selected providers and their reviews. This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={bulkDelete} data-testid="confirm-bulk-delete-btn" className="bg-red-500 hover:bg-red-600">Delete {selected.length}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

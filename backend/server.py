@@ -385,6 +385,18 @@ async def update_provider(provider_id: str, payload: ProviderBase, admin: dict =
     doc = await db.providers.find_one({"id": provider_id})
     return await enrich_provider(doc)
 
+class BulkIds(BaseModel):
+    ids: List[str] = Field(default_factory=list)
+
+@api_router.post("/admin/providers/bulk-delete")
+async def bulk_delete_providers(payload: BulkIds, admin: dict = Depends(get_current_admin)):
+    ids = [i for i in payload.ids if i]
+    if not ids:
+        return {"deleted": 0}
+    res = await db.providers.delete_many({"id": {"$in": ids}})
+    await db.reviews.delete_many({"provider_id": {"$in": ids}})
+    return {"deleted": res.deleted_count}
+
 @api_router.delete("/admin/providers/{provider_id}")
 async def delete_provider(provider_id: str, admin: dict = Depends(get_current_admin)):
     await db.providers.delete_one({"id": provider_id})
@@ -400,6 +412,11 @@ async def list_categories(type: Optional[str] = None):
     if type:
         query["type"] = type
     docs = await db.categories.find(query, {"_id": 0}).to_list(500)
+    return docs
+
+@api_router.get("/admin/categories")
+async def admin_list_categories(admin: dict = Depends(get_current_admin)):
+    docs = await db.categories.find({}, {"_id": 0}).sort("name", 1).to_list(500)
     return docs
 
 @api_router.post("/admin/categories")
