@@ -419,6 +419,33 @@ async def admin_list_categories(admin: dict = Depends(get_current_admin)):
     docs = await db.categories.find({}, {"_id": 0}).sort("name", 1).to_list(500)
     return docs
 
+@api_router.post("/admin/categories/sync")
+async def sync_categories(admin: dict = Depends(get_current_admin)):
+    existing = await db.categories.find({}, {"_id": 0, "name": 1, "type": 1}).to_list(2000)
+    have = {((c.get("name") or "").strip().lower(), c.get("type", "")) for c in existing}
+    added = 0
+
+    async def add(name, ctype, icon=""):
+        nonlocal added
+        n = (name or "").strip()
+        if not n or (n.lower(), ctype) in have:
+            return
+        have.add((n.lower(), ctype))
+        await db.categories.insert_one({
+            "id": new_id(), "name": n, "type": ctype, "icon": icon,
+            "description": "", "created_at": now_iso(),
+        })
+        added += 1
+
+    for c in await db.providers.distinct("category"):
+        await add(c, "category")
+    for s in await db.providers.distinct("specialty"):
+        await add(s, "specialty")
+    for nn in await db.providers.distinct("niches"):
+        await add(nn, "niche")
+    total = await db.categories.count_documents({})
+    return {"added": added, "total": total}
+
 @api_router.post("/admin/categories")
 async def create_category(payload: CategoryBase, admin: dict = Depends(get_current_admin)):
     doc = payload.model_dump()

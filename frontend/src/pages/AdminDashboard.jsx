@@ -207,6 +207,16 @@ function EntityManager({ entity }) {
     }
   };
 
+  const syncCategories = async () => {
+    try {
+      const { data } = await api.post("/admin/categories/sync");
+      toast.success(data.added ? `Added ${data.added} new categor${data.added === 1 ? "y" : "ies"} from providers` : "Categories already up to date");
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
+
   useEffect(() => { load(); }, [load]);
 
   const openNew = () => {
@@ -316,6 +326,11 @@ function EntityManager({ entity }) {
           <p className="text-sm text-muted-foreground">{items.length} total</p>
         </div>
         <div className="flex items-center gap-2">
+          {entity === "categories" && (
+            <Button variant="outline" onClick={syncCategories} data-testid="sync-categories-btn" className="border-[#D4AF37]/50 text-[#B8912B] hover:bg-[#FDF7E7]">
+              <Tags size={16} className="mr-1.5" /> Auto-pull from providers
+            </Button>
+          )}
           {entity === "providers" && selected.length > 0 && (
             <Button variant="outline" onClick={() => setBulkConfirm(true)} data-testid="bulk-delete-btn" className="border-red-300 text-red-600 hover:bg-red-50">
               <Trash2 size={16} className="mr-1.5" /> Delete selected ({selected.length})
