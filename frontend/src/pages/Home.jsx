@@ -52,10 +52,13 @@ export default function Home() {
     <Layout>
       {/* HERO */}
       <section className="relative hl-navy-gradient overflow-hidden">
-        <div className="absolute inset-0 opacity-20">
+        <div className="absolute inset-0 opacity-60">
           <img src={HERO_BG} alt="" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-[#0B132B]/70" />
+          <div className="absolute inset-0 bg-[#0B132B]/25" />
         </div>
+        {/* readability scrim: darker on the left where the text sits */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0B132B]/90 via-[#0B132B]/55 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0B132B]/85 via-transparent to-transparent" />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-24 lg:pt-24 lg:pb-32">
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="max-w-3xl">
             <LogoMark size={112} className="mb-8 hl-float" />
