@@ -332,7 +332,7 @@ async def list_providers(
     query = {"active": True}
     if country and country != "All Countries":
         query["country"] = country
-    if region and region != "All Parishes":
+    if region and region not in ("All Parishes", "All Parishes/Islands"):
         query["region"] = region
     if specialty:
         query["specialty"] = specialty
@@ -432,7 +432,7 @@ async def list_services(country: Optional[str] = None, region: Optional[str] = N
     query = {"active": True}
     if country and country != "All Countries":
         query["country"] = country
-    if region and region != "All Parishes":
+    if region and region not in ("All Parishes", "All Parishes/Islands"):
         query["region"] = region
     if q:
         rx = {"$regex": re.escape(q), "$options": "i"}
@@ -475,7 +475,7 @@ async def list_articles(country: Optional[str] = None, region: Optional[str] = N
     query = {"published": True}
     if country and country != "All Countries":
         query["country"] = country
-    if region and region != "All Parishes":
+    if region and region not in ("All Parishes", "All Parishes/Islands"):
         query["region"] = region
     if category:
         query["category"] = category
@@ -530,7 +530,7 @@ async def list_events(country: Optional[str] = None, region: Optional[str] = Non
     query = {"published": True}
     if country and country != "All Countries":
         query["country"] = country
-    if region and region != "All Parishes":
+    if region and region not in ("All Parishes", "All Parishes/Islands"):
         query["region"] = region
     if q:
         rx = {"$regex": re.escape(q), "$options": "i"}

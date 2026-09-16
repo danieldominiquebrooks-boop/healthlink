@@ -190,6 +190,7 @@ export function Header() {
               {[ALL_COUNTRIES, ...COUNTRY_NAMES].map((opt) => (
                 <button
                   key={opt}
+                  data-testid={`country-option-m-${opt.replace(/\s|&/g, "-")}`}
                   onClick={() => { setCountry(opt); }}
                   className={`text-left px-3 py-2 rounded-lg text-sm ${country === opt ? "bg-[#E89D93] text-white" : navInactive}`}
                 >
@@ -204,6 +205,7 @@ export function Header() {
                   {[ALL_REGIONS, ...regionsFor(country)].map((opt) => (
                     <button
                       key={opt}
+                      data-testid={`region-option-m-${opt.replace(/\s|&|\/|\./g, "-")}`}
                       onClick={() => { setRegion(opt); setOpen(false); }}
                       className={`text-left px-3 py-2 rounded-lg text-sm ${region === opt ? "bg-[#D4AF37] text-[#0B132B]" : navInactive}`}
                     >

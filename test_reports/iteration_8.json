@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 8 (Country + Parish/Island) testing complete. Backend: 8/8 pytest passed in /app/backend/tests/test_iter8.py — /api/stats returns countries_covered; /api/countries returns list; POST /api/admin/providers with {country:'Jamaica',region:'Kingston'} persists both and GET /api/providers/{id} echoes them; filter ?country=Jamaica includes it, ?country=Jamaica&region=Kingston includes it, ?country=Jamaica&region=Portland excludes it; same behavior verified for /api/articles (Barbados/Christ Church vs St. Michael) and /api/events (Trinidad & Tobago/Tobago vs Trinidad). Old ?island=... param is silently ignored (no error, no scoping). CSV bulk import with country,region columns successfully creates providers with those fields (verified TEST_ITER8_CSV_Prov). Frontend: header country-selector-trigger visible with 'All Countries' default; picking country-option-Jamaica shows region-selector-trigger with region-option-* options; picking Kingston works; switching country to Barbados correctly resets region to 'All Parishes/Islands'; picking 'All Countries' hides region trigger. SPA navigation to /directory, /blog, /events with Jamaica+Kingston shows the 'Showing: Kingston, Jamaica' note — data-testid=directory-location-note on Directory and data-testid=hero-location-note on Blog+Events (via shared PageHero component). Mobile (390x844): hamburger opens overlay with a Country 2-col grid and a Parish/Island grid that appears after a country is chosen (verified with Jamaica → Kingston). Admin form (Add Provider modal): data-testid=field-country is a select (populated with COUNTRY_NAMES) and data-testid=field-region is disabled until a country is chosen and becomes enabled after. Login works; provider count 462 as expected. Cleaned up all TEST_ITER8_* seed data.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Mobile menu Country/Parish grid", "issues": ["Grid buttons in mobile menu lack data-testid attributes (country-option-* / region-option-* exist only in desktop dropdown). Functionality works via text; adding testids would improve automated test parity."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iter8.py", "/app/test_reports/pytest/iter8.xml"],
+  "action_items": [
+    "OPTIONAL/NICE-TO-HAVE: Add data-testid=\"country-option-*\" and data-testid=\"region-option-*\" to the buttons rendered in the mobile menu grid in Header.jsx (lines ~189-213) for testability parity with desktop.",
+    "OPTIONAL: Consider explicitly rejecting or 400ing the legacy ?island= query param (currently silently ignored) or add a deprecation note."
+  ],
+  "critical_code_review_comments": [
+    "Backend sentinel mismatch: server.py filters check region != 'All Parishes' (line ~335,436,479,534) but frontend sentinel is 'All Parishes/Islands'. Since the frontend omits the param when equal to sentinel, this never manifests as a bug in practice — but if a client ever passes region='All Parishes/Islands' verbatim it would (wrongly) be treated as a real filter and return 0 rows. Recommend matching sentinels or ignoring both.",
+    "LocationContext exports its hook as `useLocation`, colliding with react-router's `useLocation`. Header aliases via `useLocation as useAppLocation`, but other pages (Blog.jsx, Events.jsx, Directory.jsx) import `useLocation` from context — safe only if they don't also import from react-router. Consider renaming the exported hook to `useAppLocation` to prevent future footguns.",
+    "AdminDashboard.jsx PROVIDER_TEMPLATE now has country,region columns — good. Consider adding a small header comment/help text to the Import CSV modal calling out the renamed column.",
+    "server.py migration island->country runs on every startup ($rename with $exists guard) — safe and idempotent, but if a doc has BOTH island and country the rename silently drops the existing country. Not an issue now since seed guarantees only one, but worth a note."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter8.py", "/app/test_reports/iteration_8.json"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "danieldominiquebrooks@gmail.com / HealthLink@2026!",
+  "seed_data_creation": "Created TEST_ITER8 provider (Jamaica/Kingston), TEST_ITER8_Article (Barbados/Christ Church), TEST_ITER8_Event (Trinidad & Tobago/Tobago), and TEST_ITER8_CSV_Prov via bulk-import. All deleted post-test; verified.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Country/region sentinels: frontend 'All Countries' / 'All Parishes/Islands' (frontend omits the query param when equal to these). Backend also compares to 'All Countries' / 'All Parishes' (note the mismatch on Parishes — harmless because frontend never sends the sentinel). Field-region is disabled in admin form until country is chosen. Mobile menu buttons for country/region grids don't yet have testids — use get_by_role('button', name=...). LocationContext exports useLocation (aliased in Header). Existing pre-bulk providers have country but not region; that's expected. Use SPA navigation (click nav links), not page.goto, when testing that context state (country/region) persists across pages.",
+  "rca of the issue": "N/A — no defects. Two low-severity design observations: (1) backend sentinel string mismatch ('All Parishes' vs 'All Parishes/Islands') is latent but currently harmless; (2) mobile menu country/region buttons lack data-testids."
+}
