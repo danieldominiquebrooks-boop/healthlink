@@ -43,7 +43,8 @@ Responsive Caribbean healthcare directory web app for phone/tablet/desktop. Prov
 - Provider opening hours (per-day editor) with "Open now"/"Closed" badges on cards and a full hours panel on provider profiles.
 - Featured articles: admins pin articles to the top of the Health Blog with a "Featured" badge.
 - Location model: content categorized by Country and a second-level Parish/Island (region); header has a Country selector plus a dependent Parish/Island selector; all sections scope to the selection.
-- Fully responsive; custom SVG brand logo. Verified: backend pytest + full frontend E2E — 100% pass (iterations 1-8).
+- Admin: bulk-select and bulk-delete providers; Categories tab lists all categories (GET /admin/categories).
+- Fully responsive; custom SVG brand logo. Verified: backend pytest + full frontend E2E — 100% pass (iterations 1-9).
 
 ## Backlog
 - P1: Rich-text article editor; article categories management UI.

@@ -390,7 +390,7 @@ class BulkIds(BaseModel):
 
 @api_router.post("/admin/providers/bulk-delete")
 async def bulk_delete_providers(payload: BulkIds, admin: dict = Depends(get_current_admin)):
-    ids = [i for i in payload.ids if i]
+    ids = [i.strip() for i in payload.ids if i and i.strip()]
     if not ids:
         return {"deleted": 0}
     res = await db.providers.delete_many({"id": {"$in": ids}})
