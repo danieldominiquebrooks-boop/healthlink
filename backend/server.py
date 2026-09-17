@@ -18,6 +18,7 @@ import bcrypt
 import re
 import csv
 import io
+import asyncio
 import requests
 from datetime import datetime, timezone, timedelta
 from bson import ObjectId
@@ -370,21 +371,83 @@ async def admin_list_providers(admin: dict = Depends(get_current_admin)):
     docs = await db.providers.find({}).to_list(1000)
     return [await enrich_provider(d) for d in docs]
 
+async def geocode_address(query: str):
+    q = (query or "").strip()
+    if not q:
+        return None
+    try:
+        resp = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": q, "format": "json", "limit": 1},
+            headers={"User-Agent": "MyHealthcareLink/1.0 (directory app)"},
+            timeout=12,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data:
+            return {"latitude": float(data[0]["lat"]), "longitude": float(data[0]["lon"])}
+    except Exception as e:
+        logger.error(f"Geocode failed for '{q}': {e}")
+    return None
+
+def _addr_query(doc: dict) -> str:
+    return ", ".join([p for p in [doc.get("address"), doc.get("region"), doc.get("country")] if p])
+
+@api_router.get("/admin/geocode")
+async def geocode_lookup(q: str, admin: dict = Depends(get_current_admin)):
+    res = await geocode_address(q)
+    if not res:
+        raise HTTPException(status_code=404, detail="Could not find that address on the map.")
+    return res
+
 @api_router.post("/admin/providers")
 async def create_provider(payload: ProviderBase, admin: dict = Depends(get_current_admin)):
     doc = payload.model_dump()
     doc["id"] = new_id()
     doc["created_at"] = now_iso()
+    if (doc.get("latitude") is None or doc.get("longitude") is None):
+        geo = await geocode_address(_addr_query(doc))
+        if geo:
+            doc.update(geo)
     await db.providers.insert_one(doc)
     return await enrich_provider(doc)
 
 @api_router.put("/admin/providers/{provider_id}")
 async def update_provider(provider_id: str, payload: ProviderBase, admin: dict = Depends(get_current_admin)):
-    res = await db.providers.update_one({"id": provider_id}, {"$set": payload.model_dump()})
+    doc = payload.model_dump()
+    if (doc.get("latitude") is None or doc.get("longitude") is None):
+        geo = await geocode_address(_addr_query(doc))
+        if geo:
+            doc.update(geo)
+    res = await db.providers.update_one({"id": provider_id}, {"$set": doc})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Provider not found")
     doc = await db.providers.find_one({"id": provider_id})
     return await enrich_provider(doc)
+
+@api_router.post("/admin/providers/geocode")
+async def backfill_geocode(admin: dict = Depends(get_current_admin)):
+    cursor = db.providers.find({
+        "$and": [
+            {"$or": [{"latitude": None}, {"latitude": {"$exists": False}}]},
+            {"address": {"$nin": [None, ""]}},
+        ]
+    }, {"_id": 0}).limit(40)
+    todo = await cursor.to_list(40)
+    updated = 0
+    for p in todo:
+        geo = await geocode_address(_addr_query(p))
+        if geo:
+            await db.providers.update_one({"id": p["id"]}, {"$set": geo})
+            updated += 1
+        await asyncio.sleep(1.0)
+    remaining = await db.providers.count_documents({
+        "$and": [
+            {"$or": [{"latitude": None}, {"latitude": {"$exists": False}}]},
+            {"address": {"$nin": [None, ""]}},
+        ]
+    })
+    return {"updated": updated, "remaining": remaining}
 
 class BulkIds(BaseModel):
     ids: List[str] = Field(default_factory=list)

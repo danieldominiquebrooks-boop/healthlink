@@ -1,7 +1,10 @@
-import React from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import React, { useEffect } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { Link } from "react-router-dom";
 import L from "leaflet";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
+import "leaflet.markercluster";
 
 export const ISLAND_COORDS = {
   "Barbados": [13.19, -59.54],
@@ -18,7 +21,7 @@ export const ISLAND_COORDS = {
   "Guyana": [6.80, -58.16],
 };
 
-const pinIcon = L.divIcon({
+export const pinIcon = L.divIcon({
   className: "",
   html: `<div style="width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:linear-gradient(135deg,#E89D93,#D4AF37);box-shadow:0 2px 6px rgba(0,0,0,.35);border:2px solid #fff;display:flex;align-items:center;justify-content:center;">
       <div style="transform:rotate(45deg);color:#0B132B;font-weight:800;font-size:14px;line-height:1;">+</div>
@@ -48,6 +51,29 @@ function directionsHref(p) {
   }
   return `https://www.google.com/maps/dir/?api=1&destination=${dest}`;
 }
+
+function ClusterMarkers({ points }) {
+  const map = useMap();
+  useEffect(() => {
+    const group = L.markerClusterGroup({ maxClusterRadius: 45 });
+    points.forEach(({ p, pos }) => {
+      const addr = [p.address, p.region, p.country].filter(Boolean).join(", ");
+      const dir = directionsHref(p);
+      const html = `<div style="min-width:150px"><p style="font-weight:700;margin:0;color:#0F172A">${p.name || ""}</p>`
+        + `<p style="color:#E89D93;font-weight:600;margin:2px 0;font-size:12px">${p.specialty || ""}</p>`
+        + `<p style="color:#64748b;margin:0;font-size:12px">${addr}</p>`
+        + `<div style="margin-top:4px;display:flex;flex-direction:column;gap:2px">`
+        + `<a href="/provider/${p.id}" style="color:#B8912B;font-weight:600;font-size:12px;text-decoration:underline">View profile →</a>`
+        + `<a href="${dir}" target="_blank" rel="noreferrer" style="color:#E89D93;font-weight:600;font-size:12px;text-decoration:underline">Get directions →</a>`
+        + `</div></div>`;
+      L.marker(pos, { icon: pinIcon }).bindPopup(html).addTo(group);
+    });
+    map.addLayer(group);
+    return () => { map.removeLayer(group); };
+  }, [map, points]);
+  return null;
+}
+
 
 export function ProvidersMap({ providers, country }) {
   const points = providers.map((p) => ({ p, pos: coordsFor(p) })).filter((x) => x.pos);
@@ -87,21 +113,7 @@ export function ProvidersMap({ providers, country }) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         />
-        {points.map(({ p, pos }) => (
-          <Marker key={p.id} position={pos} icon={pinIcon}>
-            <Popup>
-              <div className="min-w-[160px]">
-                <p className="font-bold text-[#0F172A] !m-0">{p.name}</p>
-                <p className="text-[#E89D93] font-semibold !mt-0.5 !mb-1 text-xs">{p.specialty}</p>
-                <p className="text-slate-500 text-xs !m-0">{[p.address, p.region, p.country].filter(Boolean).join(", ")}</p>
-                <div className="flex flex-col gap-0.5 mt-1">
-                  <Link to={`/provider/${p.id}`} className="text-[#B8912B] font-semibold text-xs underline">View profile →</Link>
-                  <a href={directionsHref(p)} target="_blank" rel="noreferrer" className="text-[#E89D93] font-semibold text-xs underline">Get directions →</a>
-                </div>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        <ClusterMarkers points={points} />
       </MapContainer>
     </div>
   );
