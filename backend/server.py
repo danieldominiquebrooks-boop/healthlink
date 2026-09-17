@@ -417,6 +417,8 @@ async def list_categories(type: Optional[str] = None):
 @api_router.get("/admin/categories")
 async def admin_list_categories(admin: dict = Depends(get_current_admin)):
     docs = await db.categories.find({}, {"_id": 0}).sort("name", 1).to_list(500)
+    for c in docs:
+        c["provider_count"] = await db.providers.count_documents({"category": c["name"]})
     return docs
 
 @api_router.post("/admin/categories/sync")
@@ -771,6 +773,13 @@ async def startup():
     await db.users.create_index("email", unique=True)
     await db.providers.create_index("id", unique=True)
     await db.reviews.create_index("provider_id")
+    if await db.categories.count_documents({}) == 0:
+        for n in ["Specialty", "General Practitioner", "Hospital", "Clinic", "Pediatrics"]:
+            await db.categories.insert_one({
+                "id": new_id(), "name": n, "type": "category", "icon": "",
+                "description": "", "created_at": now_iso(),
+            })
+        logger.info("Seeded default categories")
     for coll in ("providers", "articles", "events", "reviews", "services"):
         try:
             await db[coll].update_many({"island": {"$exists": True}}, {"$rename": {"island": "country"}})

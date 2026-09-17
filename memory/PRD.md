@@ -44,6 +44,7 @@ Responsive Caribbean healthcare directory web app for phone/tablet/desktop. Prov
 - Featured articles: admins pin articles to the top of the Health Blog with a "Featured" badge.
 - Location model: content categorized by Country and a second-level Parish/Island (region); header has a Country selector plus a dependent Parish/Island selector; all sections scope to the selection.
 - Admin: bulk-select and bulk-delete providers; Categories tab lists all categories (GET /admin/categories).
+- Simplified categories: seeded starter set (Specialty, General Practitioner, Hospital, Clinic, Pediatrics), add-by-name only, and each category shows its assigned provider count.
 - Fully responsive; custom SVG brand logo. Verified: backend pytest + full frontend E2E — 100% pass (iterations 1-9).
 
 ## Backlog

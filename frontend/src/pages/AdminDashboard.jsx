@@ -69,10 +69,7 @@ const SCHEMAS = {
     { key: "active", label: "Active", type: "switch" },
   ],
   categories: [
-    { key: "name", label: "Name", req: true },
-    { key: "type", label: "Type", type: "select", options: ["category", "specialty", "service", "niche"] },
-    { key: "icon", label: "Icon" },
-    { key: "description", label: "Description", type: "textarea", full: true },
+    { key: "name", label: "Category name", req: true, full: true },
   ],
   articles: [
     { key: "title", label: "Title", req: true, full: true },
@@ -106,7 +103,7 @@ const SCHEMAS = {
 const DEFAULTS = {
   providers: { in_network: false, accepting_new_patients: true, verified: false, featured: false, active: true, niches: [], services: [] },
   services: { active: true, icon: "activity" },
-  categories: { type: "category", icon: "stethoscope" },
+  categories: { type: "category" },
   articles: { published: true, author: "My Healthcare Link" },
   events: { published: true, external_links: [] },
 };
@@ -207,15 +204,7 @@ function EntityManager({ entity }) {
     }
   };
 
-  const syncCategories = async () => {
-    try {
-      const { data } = await api.post("/admin/categories/sync");
-      toast.success(data.added ? `Added ${data.added} new categor${data.added === 1 ? "y" : "ies"} from providers` : "Categories already up to date");
-      load();
-    } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
-    }
-  };
+  const syncCategories = null;
 
   useEffect(() => { load(); }, [load]);
 
@@ -326,11 +315,6 @@ function EntityManager({ entity }) {
           <p className="text-sm text-muted-foreground">{items.length} total</p>
         </div>
         <div className="flex items-center gap-2">
-          {entity === "categories" && (
-            <Button variant="outline" onClick={syncCategories} data-testid="sync-categories-btn" className="border-[#D4AF37]/50 text-[#B8912B] hover:bg-[#FDF7E7]">
-              <Tags size={16} className="mr-1.5" /> Auto-pull from providers
-            </Button>
-          )}
           {entity === "providers" && selected.length > 0 && (
             <Button variant="outline" onClick={() => setBulkConfirm(true)} data-testid="bulk-delete-btn" className="border-red-300 text-red-600 hover:bg-red-50">
               <Trash2 size={16} className="mr-1.5" /> Delete selected ({selected.length})
@@ -376,7 +360,7 @@ function EntityManager({ entity }) {
                     {entity === "providers" && item.in_network && <Badge color="emerald">In-Network</Badge>}
                     {entity === "providers" && item.featured && <Badge color="gold">Featured</Badge>}
                     {(item.active === false || item.published === false) && <Badge color="slate">Hidden</Badge>}
-                    {entity === "categories" && item.type && <Badge color="gold">{item.type}</Badge>}
+                    {entity === "categories" && <Badge color="gold">{item.provider_count || 0} provider{item.provider_count === 1 ? "" : "s"}</Badge>}
                   </div>
                   <p className="text-sm text-muted-foreground truncate">
                     {item.specialty || item.category || item.excerpt || item.description || item.date || ""}
