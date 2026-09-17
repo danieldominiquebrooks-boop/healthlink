@@ -46,6 +46,8 @@ Responsive Caribbean healthcare directory web app for phone/tablet/desktop. Prov
 - Admin: bulk-select and bulk-delete providers; Categories tab lists all categories (GET /admin/categories).
 - Simplified categories: seeded starter set (Specialty, General Practitioner, Hospital, Clinic, Pediatrics), add-by-name only, and each category shows its assigned provider count.
 - Fully responsive; custom SVG brand logo. Verified: backend pytest + full frontend E2E — 100% pass (iterations 1-9).
+- Auto-geocoding (Nominatim/OpenStreetMap): providers auto-resolve address→lat/lng on create/update; admin "Auto-locate" bulk backfill (POST /admin/providers/geocode); admin single lookup (GET /admin/geocode). Map pin clustering (leaflet.markercluster) + MiniMapPicker in admin form. Verified iteration-11 (100% backend+frontend).
+- (2026-06) Perf fix: geocode_address now uses httpx.AsyncClient (async, non-blocking) instead of sync requests.get — bulk backfill no longer freezes the event loop; server stays responsive during geocoding. Verified via concurrent request test.
 
 ## Backlog
 - P1: Rich-text article editor; article categories management UI.

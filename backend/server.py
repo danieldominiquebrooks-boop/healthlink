@@ -19,6 +19,7 @@ import re
 import csv
 import io
 import asyncio
+import httpx
 import requests
 from datetime import datetime, timezone, timedelta
 from bson import ObjectId
@@ -376,14 +377,14 @@ async def geocode_address(query: str):
     if not q:
         return None
     try:
-        resp = requests.get(
-            "https://nominatim.openstreetmap.org/search",
-            params={"q": q, "format": "json", "limit": 1},
-            headers={"User-Agent": "MyHealthcareLink/1.0 (directory app)"},
-            timeout=12,
-        )
-        resp.raise_for_status()
-        data = resp.json()
+        async with httpx.AsyncClient(timeout=12) as client:
+            resp = await client.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": q, "format": "json", "limit": 1},
+                headers={"User-Agent": "MyHealthcareLink/1.0 (directory app)"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
         if data:
             return {"latitude": float(data[0]["lat"]), "longitude": float(data[0]["lon"])}
     except Exception as e:
