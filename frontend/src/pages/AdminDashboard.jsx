@@ -39,7 +39,7 @@ const SCHEMAS = {
   providers: [
     { key: "name", label: "Name", req: true },
     { key: "specialty", label: "Specialty" },
-    { key: "category", label: "Category" },
+    { key: "category", label: "Category", type: "category-select" },
     { key: "country", label: "Country", type: "country" },
     { key: "region", label: "Parish / Island", type: "region" },
     { key: "image_url", label: "Image", type: "image", full: true },
@@ -490,6 +490,23 @@ function EntityManager({ entity }) {
   );
 }
 
+function CategorySelect({ value, onChange, testid }) {
+  const [opts, setOpts] = useState([]);
+  useEffect(() => {
+    api.get("/categories").then((r) => setOpts(r.data.map((c) => c.name))).catch(() => setOpts([]));
+  }, []);
+  const names = !value || opts.includes(value) ? opts : [value, ...opts];
+  return (
+    <Select value={value || "__none__"} onValueChange={(v) => onChange(v === "__none__" ? "" : v)}>
+      <SelectTrigger data-testid={testid}><SelectValue placeholder="Select category" /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__none__">— None —</SelectItem>
+        {names.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+}
+
 function Field({ field, value, onChange, form }) {
   const full = field.full || field.type === "textarea" || field.type === "switch";
   const listVal = field.type === "list" ? (Array.isArray(value) ? value.join(", ") : (value || "")) : value;
@@ -512,6 +529,8 @@ function Field({ field, value, onChange, form }) {
         </div>
       ) : field.type === "image" ? (
         <ImageField value={value} onChange={onChange} testid={`field-${field.key}`} />
+      ) : field.type === "category-select" ? (
+        <CategorySelect value={value} onChange={onChange} testid={`field-${field.key}`} />
       ) : field.type === "country" ? (
         <Select value={value || ""} onValueChange={onChange}>
           <SelectTrigger data-testid={`field-${field.key}`}><SelectValue placeholder="Select country" /></SelectTrigger>
