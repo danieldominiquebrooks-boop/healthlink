@@ -1,0 +1,22 @@
+{
+  "summary": "Verified the Directory Map accuracy bug-fix. Backend + frontend integration confirmed via 4 pytest tests and a Playwright end-to-end map scenario. Created 4 TEST_MAP_* providers (A: Barbados coords, B: Kingston coords, C: no coords, D: invalid coords), exercised /directory Map view, then cleaned up. Only providers with valid in-range latitude/longitude produce leaflet markers; providers without coords / with out-of-range coords are counted in the 'need coordinates' note and never receive a pin. Popup shows name + address/region/country and a Get directions href with destination=<lat>,<lng>. Empty-state note appears when no provider has coords. List view and admin lat/lng persistence unchanged.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_map_accuracy.py",
+    "/app/test_reports/pytest/map_accuracy.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ProviderBase in /app/backend/server.py declares `country: Optional[str] = \"\"` twice (lines 162 & 164). Second declaration is a duplicate; safe to remove for clarity.",
+    "GET /api/providers has a hard limit=100 default. Any consumer wanting all mapped providers might unknowingly get truncated results. Consider surfacing this in Directory UI or paginating."
+  ],
+  "updated_files": ["/app/backend/tests/test_map_accuracy.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin: danieldominiquebrooks@gmail.com / HealthLink@2026! (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Created 4 TEST_MAP_* providers via /api/admin/providers and deleted them at end of both pytest and Playwright runs. DB left clean.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend map-accuracy pytest lives at /app/backend/tests/test_map_accuracy.py — requires REACT_APP_BACKEND_URL env set (e.g. `REACT_APP_BACKEND_URL=<url> pytest ...`). All existing prior test files still coexist. Marker rendering was validated via .leaflet-marker-icon count AND unique translate3d transforms (Barbados ~559px, Kingston ~363px — different DOM positions, proving positions use actual lat/lng, not a shared country centroid). Get directions href for coord-providers is exactly `destination=<lat>,<lng>`.",
+  "rca of the issue": "Previously ProvidersMap.coordsFor() fell back to ISLAND_COORDS[country] + random jitter for providers missing lat/lng, producing bogus centroid pins. Current code returns null for missing or out-of-range coords; ProvidersMap builds points list from valid coords only, auto-centers/zooms on those pins, and shows either an unmapped-count note or an empty-state note. Verified: 2 valid + 2 invalid providers → exactly 2 markers with '2 mapped · 2 need coordinates'; 1 no-coord-only → 0 markers + map-empty-note; invalid coords (lat 999, lng -999) → filtered out."
+}

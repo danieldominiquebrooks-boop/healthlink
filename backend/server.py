@@ -161,7 +161,6 @@ class ProviderBase(BaseModel):
     address: Optional[str] = ""
     country: Optional[str] = ""
     region: Optional[str] = ""
-    country: Optional[str] = ""
     image_url: Optional[str] = ""
     latitude: Optional[float] = None
     longitude: Optional[float] = None
