@@ -28,15 +28,12 @@ const pinIcon = L.divIcon({
   popupAnchor: [0, -28],
 });
 
-function coordsFor(p, index) {
+function coordsFor(p) {
   const lat = parseFloat(p.latitude);
   const lng = parseFloat(p.longitude);
-  if (!Number.isNaN(lat) && !Number.isNaN(lng)) return [lat, lng];
-  const base = ISLAND_COORDS[p.country];
-  if (!base) return null;
-  const jx = ((index % 5) - 2) * 0.035;
-  const jy = ((Math.floor(index / 5) % 5) - 2) * 0.035;
-  return [base[0] + jy, base[1] + jx];
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return [lat, lng];
 }
 
 function directionsHref(p) {
@@ -53,14 +50,39 @@ function directionsHref(p) {
 }
 
 export function ProvidersMap({ providers, country }) {
-  const selected = country && country !== "All Countries" && ISLAND_COORDS[country];
-  const center = selected ? ISLAND_COORDS[country] : [14.6, -66.5];
-  const zoom = selected ? 9 : 5;
-  const points = providers.map((p, i) => ({ p, pos: coordsFor(p, i) })).filter((x) => x.pos);
+  const points = providers.map((p) => ({ p, pos: coordsFor(p) })).filter((x) => x.pos);
+  const unmapped = providers.length - points.length;
+
+  // Center/zoom on the actual mapped pins so tags sit at their real addresses.
+  let center;
+  let zoom;
+  if (points.length > 0) {
+    const lats = points.map((x) => x.pos[0]);
+    const lngs = points.map((x) => x.pos[1]);
+    center = [lats.reduce((a, b) => a + b, 0) / lats.length, lngs.reduce((a, b) => a + b, 0) / lngs.length];
+    const spread = Math.max(...lats) - Math.min(...lats), spreadLng = Math.max(...lngs) - Math.min(...lngs);
+    const span = Math.max(spread, spreadLng);
+    zoom = span > 8 ? 4 : span > 3 ? 6 : span > 1 ? 8 : span > 0.1 ? 11 : 13;
+  } else {
+    center = ISLAND_COORDS[country] || [14.6, -66.5];
+    zoom = ISLAND_COORDS[country] ? 9 : 5;
+  }
 
   return (
     <div className="relative z-0 rounded-2xl overflow-hidden border border-[#E89D93]/20" data-testid="providers-map">
-      <MapContainer key={`${country}-${providers.length}`} center={center} zoom={zoom} scrollWheelZoom={false} style={{ height: "68vh", width: "100%" }}>
+      {unmapped > 0 && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[500] px-3 py-1.5 rounded-full bg-[#0B132B]/90 text-white text-xs font-medium shadow-lg" data-testid="map-unmapped-note">
+          {points.length} mapped · {unmapped} need coordinates
+        </div>
+      )}
+      {points.length === 0 && (
+        <div className="absolute inset-0 z-[500] flex items-center justify-center pointer-events-none">
+          <div className="px-4 py-2 rounded-xl bg-white/95 text-[#0B132B] text-sm font-medium shadow" data-testid="map-empty-note">
+            No providers have map coordinates yet. Add latitude &amp; longitude in the admin dashboard to place them accurately.
+          </div>
+        </div>
+      )}
+      <MapContainer key={`${country}-${points.length}-${center[0].toFixed(2)}-${center[1].toFixed(2)}`} center={center} zoom={zoom} scrollWheelZoom={false} style={{ height: "68vh", width: "100%" }}>
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -71,7 +93,7 @@ export function ProvidersMap({ providers, country }) {
               <div className="min-w-[160px]">
                 <p className="font-bold text-[#0F172A] !m-0">{p.name}</p>
                 <p className="text-[#E89D93] font-semibold !mt-0.5 !mb-1 text-xs">{p.specialty}</p>
-                <p className="text-slate-500 text-xs !m-0">{[p.region, p.country].filter(Boolean).join(", ")}</p>
+                <p className="text-slate-500 text-xs !m-0">{[p.address, p.region, p.country].filter(Boolean).join(", ")}</p>
                 <div className="flex flex-col gap-0.5 mt-1">
                   <Link to={`/provider/${p.id}`} className="text-[#B8912B] font-semibold text-xs underline">View profile →</Link>
                   <a href={directionsHref(p)} target="_blank" rel="noreferrer" className="text-[#E89D93] font-semibold text-xs underline">Get directions →</a>
