@@ -284,6 +284,11 @@ async def root():
 async def get_countries():
     return ISLANDS
 
+@api_router.get("/specialties")
+async def get_specialties():
+    vals = await db.providers.distinct("specialty", {"active": True})
+    return sorted([v for v in vals if v and v.strip()])
+
 @api_router.get("/stats")
 async def get_stats():
     providers = await db.providers.count_documents({"active": True})
@@ -322,7 +327,6 @@ async def list_providers(
     region: Optional[str] = None,
     specialty: Optional[str] = None,
     category: Optional[str] = None,
-    in_network: Optional[bool] = None,
     accepting: Optional[bool] = None,
     featured: Optional[bool] = None,
     q: Optional[str] = None,
@@ -338,8 +342,6 @@ async def list_providers(
         query["specialty"] = specialty
     if category:
         query["category"] = category
-    if in_network is not None:
-        query["in_network"] = in_network
     if accepting is not None:
         query["accepting_new_patients"] = accepting
     if featured is not None:

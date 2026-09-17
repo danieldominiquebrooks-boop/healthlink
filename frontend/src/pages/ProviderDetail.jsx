@@ -43,11 +43,6 @@ export default function ProviderDetail() {
           <div className="flex flex-col sm:flex-row gap-6 items-start">
             <img src={provider.image_url || FALLBACK} alt={provider.name} className="w-28 h-28 rounded-2xl object-cover border-2 border-[#D4AF37]/40 shrink-0" onError={(e) => { e.currentTarget.src = FALLBACK; }} />
             <div className="flex-1">
-              {provider.in_network && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/90 text-white text-xs font-semibold mb-2">
-                  <ShieldCheck size={12} /> In-Network Provider
-                </span>
-              )}
               <h1 className="font-display text-3xl sm:text-4xl font-bold text-white flex items-center gap-2">
                 {provider.name}
                 {provider.verified && <BadgeCheck size={24} className="text-[#D4AF37]" />}

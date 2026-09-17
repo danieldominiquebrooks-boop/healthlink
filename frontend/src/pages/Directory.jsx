@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Search, SlidersHorizontal, ShieldCheck, LayoutGrid, Map as MapIcon, MapPin } from "lucide-react";
+import { Search, SlidersHorizontal, LayoutGrid, Map as MapIcon, MapPin } from "lucide-react";
 import { Layout } from "@/components/Layout";
 import { ProviderCard } from "@/components/ProviderCard";
 import { ProvidersMap } from "@/components/ProvidersMap";
@@ -22,14 +22,13 @@ export default function Directory() {
   const [specialties, setSpecialties] = useState([]);
   const [category, setCategory] = useState("all");
   const [specialty, setSpecialty] = useState("all");
-  const [inNetwork, setInNetwork] = useState(false);
   const [sort, setSort] = useState("relevant");
   const [view, setView] = useState("list");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     api.get("/categories", { params: { type: "category" } }).then((r) => setCategories(r.data)).catch(() => {});
-    api.get("/categories", { params: { type: "specialty" } }).then((r) => setSpecialties(r.data)).catch(() => {});
+    api.get("/specialties").then((r) => setSpecialties(r.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -40,13 +39,12 @@ export default function Directory() {
     if (region && region !== "All Parishes/Islands") p.region = region;
     if (category !== "all") p.category = category;
     if (specialty !== "all") p.specialty = specialty;
-    if (inNetwork) p.in_network = true;
     p.sort = sort;
     const t = setTimeout(() => {
       api.get("/providers", { params: p }).then((r) => setProviders(r.data)).catch(() => setProviders([])).finally(() => setLoading(false));
     }, 250);
     return () => clearTimeout(t);
-  }, [q, country, region, category, specialty, inNetwork, sort]);
+  }, [q, country, region, category, specialty, sort]);
 
   return (
     <Layout>
@@ -96,13 +94,9 @@ export default function Directory() {
                   <SelectTrigger data-testid="filter-specialty"><SelectValue placeholder="All specialties" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All specialties</SelectItem>
-                    {specialties.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                    {specialties.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="flex items-center justify-between rounded-lg bg-[#FAF7F2] px-3 py-2.5">
-                <Label htmlFor="innet" className="cursor-pointer text-sm flex items-center gap-1.5"><ShieldCheck size={15} className="text-emerald-500" /> In-Network only</Label>
-                <Switch id="innet" data-testid="filter-in-network" checked={inNetwork} onCheckedChange={setInNetwork} />
               </div>
             </div>
           </div>

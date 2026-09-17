@@ -29,9 +29,9 @@ import { COUNTRY_NAMES, regionsFor } from "@/lib/constants";
 import api, { formatApiError } from "@/lib/api";
 import { toast } from "sonner";
 
-const PROVIDER_TEMPLATE = `name,specialty,category,country,region,description,phone,email,website,address,niches,services,in_network,featured,verified,accepting_new_patients,image_url
-Dr. Jane Doe,Cardiology,Doctors,Barbados,Christ Church,Experienced cardiologist serving the community,+1246555000,jane@example.com,https://example.com,Bridgetown,Heart Health;Preventive Care,Consultation;ECG;Stress Test,true,true,true,true,
-Sunrise Wellness Clinic,General Practice,Clinics,Jamaica,Kingston,Full-service family clinic,+1876555111,info@sunrise.com,,Kingston,Family Medicine;Pediatrics,General Consultation;Vaccinations,false,false,true,true,
+const PROVIDER_TEMPLATE = `name,specialty,category,country,region,description,phone,email,website,address,niches,services,featured,verified,accepting_new_patients,image_url
+Dr. Jane Doe,Cardiology,Doctors,Barbados,Christ Church,Experienced cardiologist serving the community,+1246555000,jane@example.com,https://example.com,Bridgetown,Heart Health;Preventive Care,Consultation;ECG;Stress Test,true,true,true,
+Sunrise Wellness Clinic,General Practice,Clinics,Jamaica,Kingston,Full-service family clinic,+1876555111,info@sunrise.com,,Kingston,Family Medicine;Pediatrics,General Consultation;Vaccinations,false,true,true,
 `;
 
 // Field schemas per entity
@@ -53,7 +53,6 @@ const SCHEMAS = {
     { key: "latitude", label: "Latitude (optional · for map)", type: "number" },
     { key: "longitude", label: "Longitude (optional · for map)", type: "number" },
     { key: "hours", label: "Opening hours", type: "hours", full: true },
-    { key: "in_network", label: "In-Network", type: "switch" },
     { key: "accepting_new_patients", label: "Accepting new patients", type: "switch" },
     { key: "verified", label: "Verified", type: "switch" },
     { key: "featured", label: "Featured on homepage", type: "switch" },
@@ -101,7 +100,7 @@ const SCHEMAS = {
 };
 
 const DEFAULTS = {
-  providers: { in_network: false, accepting_new_patients: true, verified: false, featured: false, active: true, niches: [], services: [] },
+  providers: { accepting_new_patients: true, verified: false, featured: false, active: true, niches: [], services: [] },
   services: { active: true, icon: "activity" },
   categories: { type: "category" },
   articles: { published: true, author: "My Healthcare Link" },
@@ -357,7 +356,6 @@ function EntityManager({ entity }) {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-[#0F172A] truncate">{item[titleKey]}</span>
                     {item.country && <Badge>{item.region ? `${item.region}, ${item.country}` : item.country}</Badge>}
-                    {entity === "providers" && item.in_network && <Badge color="emerald">In-Network</Badge>}
                     {entity === "providers" && item.featured && <Badge color="gold">Featured</Badge>}
                     {(item.active === false || item.published === false) && <Badge color="slate">Hidden</Badge>}
                     {entity === "categories" && <Badge color="gold">{item.provider_count || 0} provider{item.provider_count === 1 ? "" : "s"}</Badge>}
