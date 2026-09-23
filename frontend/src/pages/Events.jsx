@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Calendar, MapPin, User } from "lucide-react";
 import { Layout } from "@/components/Layout";
 import { PageHero } from "@/components/PageHero";
+import { NewsletterModal } from "@/components/NewsletterModal";
 import api from "@/lib/api";
 import { useLocation } from "@/context/LocationContext";
 
@@ -21,6 +22,7 @@ export default function Events() {
 
   return (
     <Layout>
+      <NewsletterModal context="events" />
       <PageHero title="Healthcare Events" subtitle="Health fairs, workshops, screenings and community events across the Caribbean." testid="events-hero" note={country !== "All Countries" ? (region !== "All Parishes/Islands" ? `${region}, ${country}` : country) : null} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {events.length ? (

@@ -26,9 +26,21 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
+    return data; // { requires_2fa, challenge, email }
+  };
+
+  const verify2fa = async (challenge, code) => {
+    const { data } = await api.post("/auth/verify-2fa", { challenge, code });
     localStorage.setItem("hl_token", data.access_token);
     setUser(data.user);
     return data.user;
+  };
+
+  const refresh = async () => {
+    try {
+      const res = await api.get("/auth/me");
+      setUser(res.data);
+    } catch { /* keep current */ }
   };
 
   const logout = () => {
@@ -37,7 +49,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, ready, login, logout }}>
+    <AuthContext.Provider value={{ user, ready, login, verify2fa, refresh, logout }}>
       {children}
     </AuthContext.Provider>
   );

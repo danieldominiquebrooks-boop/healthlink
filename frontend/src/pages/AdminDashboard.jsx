@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, Activity, Tags, BookOpen, Calendar, MessageSquare, Settings as SettingsIcon,
   Plus, Pencil, Trash2, LogOut, Check, X, Eye, ExternalLink, ShieldCheck,
-  Upload, Download, Image as ImageIcon, Star,
+  Upload, Download, Image as ImageIcon, Star, BarChart3, Mail, Megaphone,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -113,6 +113,9 @@ const TABS = [
   { key: "articles", label: "Articles", icon: BookOpen },
   { key: "events", label: "Events", icon: Calendar },
   { key: "reviews", label: "Reviews", icon: MessageSquare },
+  { key: "subscribers", label: "Subscribers", icon: Mail },
+  { key: "analytics", label: "Analytics", icon: BarChart3 },
+  { key: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
 export default function AdminDashboard() {
@@ -161,7 +164,11 @@ export default function AdminDashboard() {
 
         {/* Content */}
         <div>
-          {tab === "reviews" ? <ReviewsManager /> : <EntityManager key={tab} entity={tab} />}
+          {tab === "reviews" ? <ReviewsManager />
+            : tab === "settings" ? <SettingsManager />
+            : tab === "subscribers" ? <SubscribersManager />
+            : tab === "analytics" ? <AnalyticsManager />
+            : <EntityManager key={tab} entity={tab} />}
         </div>
       </div>
     </div>
@@ -182,6 +189,11 @@ function EntityManager({ entity }) {
   const [deleteId, setDeleteId] = useState(null);
   const [selected, setSelected] = useState([]);
   const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [fltCountry, setFltCountry] = useState("all");
+  const [fltRegion, setFltRegion] = useState("all");
+  const [fltCategory, setFltCategory] = useState("all");
+  const [catOptions, setCatOptions] = useState([]);
+  const [notifyItem, setNotifyItem] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -206,6 +218,10 @@ function EntityManager({ entity }) {
   const syncCategories = null;
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (entity === "providers") api.get("/categories").then((r) => setCatOptions(r.data.map((c) => c.name))).catch(() => {});
+  }, [entity]);
 
   const openNew = () => {
     setEditing(null);
@@ -306,6 +322,23 @@ function EntityManager({ entity }) {
 
   const titleKey = entity === "articles" ? "title" : "name";
 
+  const filtered = entity === "providers" ? items.filter((it) => {
+    if (fltCountry !== "all" && it.country !== fltCountry) return false;
+    if (fltRegion !== "all" && it.region !== fltRegion) return false;
+    if (fltCategory !== "all" && it.category !== fltCategory) return false;
+    return true;
+  }) : items;
+
+  const notify = async () => {
+    try {
+      const { data } = await api.post(`/admin/${entity}/${notifyItem.id}/notify`);
+      toast.success(data.queued ? `Notifying ${data.queued} subscriber(s).` : "No active subscribers to notify yet.");
+      setNotifyItem(null);
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
@@ -330,6 +363,36 @@ function EntityManager({ entity }) {
         </div>
       </div>
 
+      {entity === "providers" && items.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-4" data-testid="provider-filters">
+          <Select value={fltCountry} onValueChange={(v) => { setFltCountry(v); setFltRegion("all"); }}>
+            <SelectTrigger className="w-44" data-testid="filter-country"><SelectValue placeholder="Country" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All countries</SelectItem>
+              {COUNTRY_NAMES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={fltRegion} onValueChange={setFltRegion} disabled={fltCountry === "all"}>
+            <SelectTrigger className="w-44" data-testid="filter-region"><SelectValue placeholder="Parish / Island" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All parishes/islands</SelectItem>
+              {regionsFor(fltCountry === "all" ? "" : fltCountry).map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={fltCategory} onValueChange={setFltCategory}>
+            <SelectTrigger className="w-44" data-testid="filter-category"><SelectValue placeholder="Category" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {catOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {(fltCountry !== "all" || fltRegion !== "all" || fltCategory !== "all") && (
+            <button onClick={() => { setFltCountry("all"); setFltRegion("all"); setFltCategory("all"); }} data-testid="filter-clear" className="text-sm text-[#E89D93] hover:text-[#d47f74] px-2">Clear filters</button>
+          )}
+          <span className="text-sm text-muted-foreground ml-auto" data-testid="filter-count">{filtered.length} shown</span>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-muted-foreground py-10 text-center">Loading...</p>
       ) : items.length === 0 ? (
@@ -346,7 +409,8 @@ function EntityManager({ entity }) {
             </label>
           )}
           <div className="divide-y divide-slate-100">
-            {items.map((item, i) => (
+            {filtered.length === 0 && <p className="px-4 py-10 text-center text-sm text-muted-foreground" data-testid="no-filter-match">No {entity} match these filters.</p>}
+            {filtered.map((item, i) => (
               <div key={item.id} data-testid={`${entity}-row-${i}`} className="flex items-center gap-4 px-4 py-3 hover:bg-[#FAF7F2] transition-colors">
                 {entity === "providers" && (
                   <input type="checkbox" data-testid={`select-providers-${i}`} checked={selected.includes(item.id)} onChange={() => toggleSelect(item.id)} className="w-4 h-4 accent-[#E89D93] shrink-0" />
@@ -365,6 +429,9 @@ function EntityManager({ entity }) {
                   </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  {(entity === "articles" || entity === "events") && (
+                    <button onClick={() => setNotifyItem(item)} data-testid={`notify-${entity}-${i}`} title="Notify subscribers" className="p-2 rounded-lg hover:bg-[#FDF7E7] text-[#B8912B]"><Megaphone size={16} /></button>
+                  )}
                   {entity === "providers" && (
                     <button onClick={() => toggleFeatured(item)} data-testid={`feature-providers-${i}`} title={item.featured ? "Remove from featured" : "Mark as featured"} className={`p-2 rounded-lg hover:bg-[#FDF7E7] ${item.featured ? "text-[#D4AF37]" : "text-slate-400"}`}>
                     <Star size={16} fill={item.featured ? "#D4AF37" : "none"} /></button>
@@ -446,6 +513,21 @@ function EntityManager({ entity }) {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={bulkDelete} data-testid="confirm-bulk-delete-btn" className="bg-red-500 hover:bg-red-600">Delete {selected.length}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!notifyItem} onOpenChange={(v) => !v && setNotifyItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Notify subscribers?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This emails all active mailing-list subscribers about "{notifyItem?.[titleKey]}". Each email includes a one-click unsubscribe link.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={notify} data-testid="confirm-notify-btn" className="bg-[#0B132B] hover:bg-[#1C2541]">Send notification</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -731,4 +813,290 @@ function StatusBadge({ status }) {
     rejected: "bg-red-50 text-red-500",
   };
   return <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize ${map[status]}`}>{status}</span>;
+}
+
+function SettingField({ k, label, ph, area, value, onChange }) {
+  return (
+    <div className={area ? "sm:col-span-2" : ""}>
+      <Label className="mb-1.5 block text-sm">{label}</Label>
+      {area
+        ? <Textarea data-testid={`setting-${k}`} rows={3} value={value} onChange={(e) => onChange(e.target.value)} placeholder={ph} />
+        : <Input data-testid={`setting-${k}`} value={value} onChange={(e) => onChange(e.target.value)} placeholder={ph} />}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Site settings + account/security
+// -----------------------------------------------------------------------------
+function SettingsManager() {
+  const { refresh } = useAuth();
+  const [s, setS] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [cur, setCur] = useState("");
+  const [ne, setNe] = useState("");
+  const [np, setNp] = useState("");
+  const [accSaving, setAccSaving] = useState(false);
+
+  useEffect(() => {
+    api.get("/settings").then((r) => setS(r.data || {})).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  const setF = (k, v) => setS((p) => ({ ...p, [k]: v }));
+
+  const save = async () => {
+    setSaving(true);
+    try { await api.put("/admin/settings", s); toast.success("Settings saved"); }
+    catch (err) { toast.error(formatApiError(err.response?.data?.detail)); }
+    finally { setSaving(false); }
+  };
+
+  const saveAccount = async () => {
+    if (!cur) return toast.error("Enter your current password to confirm changes.");
+    if (!ne.trim() && !np) return toast.error("Enter a new email or new password.");
+    setAccSaving(true);
+    try {
+      const body = { current_password: cur };
+      if (ne.trim()) body.new_email = ne.trim().toLowerCase();
+      if (np) body.new_password = np;
+      await api.put("/admin/account", body);
+      toast.success("Account updated");
+      setCur(""); setNe(""); setNp("");
+      refresh();
+    } catch (err) { toast.error(formatApiError(err.response?.data?.detail)); }
+    finally { setAccSaving(false); }
+  };
+
+  if (loading) return <p className="text-muted-foreground py-10 text-center">Loading...</p>;
+
+  const TF = (k, label, ph, area) => (
+    <SettingField k={k} label={label} ph={ph} area={area} value={s[k] || ""} onChange={(v) => setF(k, v)} />
+  );
+
+  return (
+    <div className="space-y-6" data-testid="settings-manager">
+      <h2 className="font-display text-2xl font-bold text-[#0F172A]">Settings</h2>
+
+      <div className="bg-white rounded-2xl border border-[#E89D93]/15 p-5">
+        <h3 className="font-display font-bold text-[#0F172A] mb-4">Site content</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {TF("site_title", "Site title", "My Healthcare Link")}
+          {TF("hero_heading", "Homepage heading", "Find trusted healthcare across the Caribbean")}
+          {TF("hero_subheading", "Homepage tagline", "Discover doctors, services and events near you", true)}
+          {TF("about_text", "About blurb (footer)", "Connecting Caribbean communities with trusted healthcare...", true)}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-[#E89D93]/15 p-5">
+        <h3 className="font-display font-bold text-[#0F172A] mb-4">Contact & social links</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {TF("contact_email", "Contact email", "hello@myhealthcarelink.com")}
+          {TF("contact_phone", "Contact phone", "+1 (246) 000-0000")}
+          {TF("contact_address", "Address", "Bridgetown, Barbados", true)}
+          {TF("facebook_url", "Facebook URL", "https://facebook.com/yourpage")}
+          {TF("instagram_url", "Instagram URL", "https://instagram.com/yourpage")}
+          {TF("tiktok_url", "TikTok URL", "https://tiktok.com/@yourpage")}
+        </div>
+        <div className="mt-4 flex justify-end">
+          <Button onClick={save} disabled={saving} data-testid="save-settings-btn" className="bg-[#0B132B] hover:bg-[#1C2541] text-white">
+            {saving ? "Saving..." : "Save settings"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-[#E89D93]/15 p-5">
+        <h3 className="font-display font-bold text-[#0F172A] flex items-center gap-2"><ShieldCheck size={18} className="text-[#B8912B]" /> Account & security</h3>
+        <p className="text-sm text-muted-foreground mt-1 mb-4">Update your admin login email or password. Enter your current password to confirm.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label className="mb-1.5 block text-sm">New email</Label>
+            <Input data-testid="account-new-email" type="email" value={ne} onChange={(e) => setNe(e.target.value)} placeholder="new@email.com" />
+          </div>
+          <div>
+            <Label className="mb-1.5 block text-sm">New password (min 8 chars)</Label>
+            <Input data-testid="account-new-password" type="password" value={np} onChange={(e) => setNp(e.target.value)} placeholder="********" />
+          </div>
+          <div className="sm:col-span-2">
+            <Label className="mb-1.5 block text-sm">Current password <span className="text-[#E89D93]">*</span></Label>
+            <Input data-testid="account-current-password" type="password" value={cur} onChange={(e) => setCur(e.target.value)} placeholder="********" />
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <Button onClick={saveAccount} disabled={accSaving} data-testid="save-account-btn" className="bg-[#E89D93] hover:bg-[#e08b80] text-white">
+            {accSaving ? "Updating..." : "Update account"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Newsletter subscribers
+// -----------------------------------------------------------------------------
+function SubscribersManager() {
+  const [subs, setSubs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState("");
+  const [deleteId, setDeleteId] = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    api.get("/admin/subscribers").then((r) => setSubs(r.data)).catch(() => setSubs([])).finally(() => setLoading(false));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const add = async () => {
+    if (!email.trim()) return;
+    try {
+      await api.post("/admin/subscribers", { email: email.trim().toLowerCase() });
+      toast.success("Subscriber added");
+      setEmail(""); load();
+    } catch (err) { toast.error(formatApiError(err.response?.data?.detail)); }
+  };
+  const toggle = async (sub) => {
+    try { await api.put(`/admin/subscribers/${sub.id}`, { active: !sub.active }); load(); }
+    catch { toast.error("Failed to update"); }
+  };
+  const remove = async () => {
+    try { await api.delete(`/admin/subscribers/${deleteId}`); toast.success("Removed"); setDeleteId(null); load(); }
+    catch { toast.error("Failed to delete"); }
+  };
+
+  const activeCount = subs.filter((x) => x.active).length;
+
+  return (
+    <div data-testid="subscribers-manager">
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <div>
+          <h2 className="font-display text-2xl font-bold text-[#0F172A]">Mailing List</h2>
+          <p className="text-sm text-muted-foreground">{subs.length} total · {activeCount} active</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Input data-testid="add-subscriber-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="add email..." className="w-56" />
+          <Button onClick={add} data-testid="add-subscriber-btn" className="bg-[#0B132B] hover:bg-[#1C2541] text-white"><Plus size={16} className="mr-1.5" /> Add</Button>
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-muted-foreground py-10 text-center">Loading...</p>
+      ) : subs.length === 0 ? (
+        <div className="rounded-2xl border-2 border-dashed border-[#E89D93]/25 py-16 text-center">
+          <Mail size={28} className="mx-auto text-[#E89D93]/60" />
+          <p className="mt-3 text-muted-foreground">No subscribers yet. They appear here when visitors join from the blog/events popup.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-[#E89D93]/15 divide-y divide-slate-100">
+          {subs.map((sub, i) => (
+            <div key={sub.id} data-testid={`subscriber-row-${i}`} className="flex items-center gap-4 px-4 py-3 hover:bg-[#FAF7F2]">
+              <div className="flex-1 min-w-0">
+                <span className="font-medium text-[#0F172A] truncate">{sub.email}</span>
+                {!sub.active && <Badge color="slate">Inactive</Badge>}
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                  <Switch data-testid={`subscriber-active-${i}`} checked={!!sub.active} onCheckedChange={() => toggle(sub)} />
+                  Active
+                </label>
+                <button onClick={() => setDeleteId(sub.id)} data-testid={`delete-subscriber-${i}`} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 size={16} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this subscriber?</AlertDialogTitle>
+            <AlertDialogDescription>They will be permanently removed from the mailing list.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={remove} className="bg-red-500 hover:bg-red-600">Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Visitor analytics
+// -----------------------------------------------------------------------------
+function AnalyticsManager() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [openId, setOpenId] = useState(null);
+
+  useEffect(() => {
+    api.get("/admin/analytics").then((r) => setData(r.data)).catch(() => setData({ sessions: [], total_sessions: 0, total_pageviews: 0 })).finally(() => setLoading(false));
+  }, []);
+
+  const fmtDur = (s) => (s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s || 0}s`);
+  const fmtTime = (iso) => { try { return new Date(iso).toLocaleString(); } catch { return iso; } };
+
+  if (loading) return <p className="text-muted-foreground py-10 text-center">Loading...</p>;
+
+  const sessions = data?.sessions || [];
+
+  return (
+    <div data-testid="analytics-manager">
+      <h2 className="font-display text-2xl font-bold text-[#0F172A] mb-5">Visitor Analytics</h2>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+        {[
+          { l: "Sessions", v: data?.total_sessions || 0 },
+          { l: "Page views", v: data?.total_pageviews || 0 },
+          { l: "Countries", v: new Set(sessions.map((x) => x.country).filter(Boolean)).size },
+        ].map((c) => (
+          <div key={c.l} className="bg-white rounded-2xl border border-[#E89D93]/15 p-5">
+            <div className="font-display text-3xl font-bold text-[#0B132B]">{c.v}</div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground mt-1">{c.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {sessions.length === 0 ? (
+        <div className="rounded-2xl border-2 border-dashed border-[#E89D93]/25 py-16 text-center">
+          <BarChart3 size={28} className="mx-auto text-[#E89D93]/60" />
+          <p className="mt-3 text-muted-foreground">No visits recorded yet.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-[#E89D93]/15 overflow-hidden">
+          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-4 py-2.5 bg-[#FAF7F2] text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <span>Visitor / Location</span><span className="text-right">Pages</span><span className="text-right">Time</span><span className="text-right">Last seen</span>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {sessions.map((s, i) => (
+              <div key={s.session_id} data-testid={`analytics-session-${i}`}>
+                <button onClick={() => setOpenId(openId === s.session_id ? null : s.session_id)} className="w-full grid grid-cols-[1fr_auto_auto_auto] gap-3 px-4 py-3 items-center text-left hover:bg-[#FAF7F2]">
+                  <div className="min-w-0">
+                    <div className="font-medium text-[#0F172A] truncate">{s.country || "Unknown"}{s.city ? `, ${s.city}` : ""}</div>
+                    <div className="text-xs text-muted-foreground truncate">{s.ip || "—"}</div>
+                  </div>
+                  <span className="text-right text-sm">{s.page_count}</span>
+                  <span className="text-right text-sm">{fmtDur(s.total_duration)}</span>
+                  <span className="text-right text-xs text-muted-foreground whitespace-nowrap">{fmtTime(s.last_seen)}</span>
+                </button>
+                {openId === s.session_id && (
+                  <div className="px-4 pb-3 bg-[#FAF7F2]/50" data-testid={`analytics-pages-${i}`}>
+                    <p className="text-xs text-muted-foreground mb-1.5 break-all">{s.user_agent}</p>
+                    <ul className="space-y-1">
+                      {s.pages.map((p, j) => (
+                        <li key={j} className="flex items-center justify-between text-sm text-[#334155] gap-3">
+                          <span className="font-mono text-xs truncate">{p.path}</span>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">{fmtTime(p.ts)} · {fmtDur(p.duration)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

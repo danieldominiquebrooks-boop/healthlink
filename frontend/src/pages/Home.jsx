@@ -32,7 +32,12 @@ export default function Home() {
   const [articles, setArticles] = useState([]);
   const [events, setEvents] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [settings, setSettings] = useState({});
   const [stats, setStats] = useState({ providers: 0, countries_covered: 12, articles: 0, events: 0 });
+
+  useEffect(() => {
+    api.get("/settings").then((r) => setSettings(r.data || {})).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const p = {};
@@ -67,12 +72,18 @@ export default function Home() {
             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full hl-glass text-xs font-semibold uppercase tracking-[0.2em] text-[#D4AF37]">
               <Sparkles size={13} /> Quality care, brighter tomorrows
             </span>
-            <h1 className="mt-6 font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.05]">
-              Find trusted <span className="hl-gold-text">healthcare</span> <br className="hidden sm:block" />
-              across the <span className="hl-blush-text">Caribbean</span>
-            </h1>
-            <p className="mt-5 text-lg text-slate-300 max-w-xl leading-relaxed">
-              Discover doctors, services, health information and events — closer to you, across every Caribbean country.
+            {settings.hero_heading ? (
+              <h1 className="mt-6 font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.05]" data-testid="hero-heading">
+                {settings.hero_heading}
+              </h1>
+            ) : (
+              <h1 className="mt-6 font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.05]" data-testid="hero-heading">
+                Find trusted <span className="hl-gold-text">healthcare</span> <br className="hidden sm:block" />
+                across the <span className="hl-blush-text">Caribbean</span>
+              </h1>
+            )}
+            <p className="mt-5 text-lg text-slate-300 max-w-xl leading-relaxed" data-testid="hero-subheading">
+              {settings.hero_subheading || "Discover doctors, services, health information and events \u2014 closer to you, across every Caribbean country."}
             </p>
 
             <form onSubmit={doSearch} className="mt-8 max-w-2xl">

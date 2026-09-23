@@ -5,8 +5,8 @@ import os
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, Query, UploadFile, File
-from fastapi.responses import Response
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, Query, UploadFile, File, BackgroundTasks
+from fastapi.responses import Response, HTMLResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
@@ -23,6 +23,11 @@ import httpx
 import requests
 from datetime import datetime, timezone, timedelta
 from bson import ObjectId
+import secrets
+import ipaddress
+from html import escape
+from html.parser import HTMLParser
+from urllib.parse import urlparse
 
 # ----------------------------------------------------------------------------
 # Setup
@@ -98,6 +103,150 @@ def get_object(path: str):
         resp = requests.get(url, headers={"X-Storage-Key": key}, timeout=60)
     resp.raise_for_status()
     return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+
+# ----------------------------------------------------------------------------
+# Email (Emergent-managed Resend) + guardrail gate
+# ----------------------------------------------------------------------------
+EMAIL_BASE_URL = "https://integrations.emergentagent.com"
+EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY", "")
+EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "My Healthcare Link")
+EMAIL_REPLY_TO = os.environ.get("EMAIL_REPLY_TO")
+
+_SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
+_CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
+             "send us your password", "enter your password below", "confirm your card number",
+             "your full card number", "seed phrase", "recovery phrase", "verify your card",
+             "social security number", "confirm your bank details")
+_HOSTISH = re.compile(r"\b(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})", re.I)
+
+def _host_ok(host: str) -> bool:
+    if not host or "xn--" in host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        pass
+    return not any(host == s or host.endswith("." + s) for s in _SHORTENERS)
+
+def _same_site(shown: str, real: str) -> bool:
+    return shown == real or real.endswith("." + shown) or shown.endswith("." + real)
+
+class _EmailScan(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tags, self.urls, self.anchors = set(), [], []
+        self._href, self._text = None, []
+    def handle_starttag(self, tag, attrs):
+        self.tags.add(tag.lower())
+        self.urls += [v for k, v in attrs if k.lower() in ("href", "src") and v]
+        if tag.lower() == "a":
+            self._href = dict((k.lower(), v) for k, v in attrs).get("href")
+            self._text = []
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._href is not None:
+            self.anchors.append((self._href, "".join(self._text)))
+            self._href, self._text = None, []
+
+def _assert_safe_email(subject: str, html: str) -> None:
+    scan = _EmailScan(); scan.feed(html)
+    if scan.tags & {"form", "input", "textarea", "select"}:
+        raise ValueError("No forms or input fields in email (G2)")
+    body = f"{subject}\n{html}".lower()
+    for p in _CRED_ASK:
+        if p in body:
+            raise ValueError(f"Email asks the recipient for credentials: {p!r} (G2)")
+    for url in scan.urls:
+        low = url.strip().lower()
+        if low.startswith(("mailto:", "tel:", "cid:", "#")):
+            continue
+        if not low.startswith("https://"):
+            raise ValueError(f"Email links/assets must be absolute https: {url!r} (G3)")
+        host = urlparse(low).hostname or ""
+        if not _host_ok(host) or urlparse(low).username is not None:
+            raise ValueError(f"Shortened, numeric-host or credential-bearing URL: {url!r} (G3)")
+    for href, text in scan.anchors:
+        real = urlparse(href.strip().lower()).hostname or ""
+        if not real:
+            continue
+        for m in _HOSTISH.finditer(text):
+            if not _same_site(m.group(1).lower(), real):
+                raise ValueError(f"Anchor text {m.group(1)!r} != real link host {real!r} (G3)")
+
+async def send_email(*, to: str, subject: str, html: str, reply_to: str = None):
+    _assert_safe_email(subject, html)
+    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
+    if reply_to or EMAIL_REPLY_TO:
+        payload["contact_email"] = reply_to or EMAIL_REPLY_TO
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            f"{EMAIL_BASE_URL}/api/v1/email/send",
+            headers={"X-Email-Key": EMAIL_KEY},
+            json=payload,
+        )
+    resp.raise_for_status()
+    return resp.json().get("id")
+
+def _twofa_html(code: str) -> str:
+    return (f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;background:#FAF7F2">'
+            f'<div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;padding:32px">'
+            f'<h1 style="color:#0B132B;margin:0 0 8px;font-size:22px">{escape(EMAIL_FROM_NAME)}</h1>'
+            f'<p style="color:#334155;font-size:15px">Your admin login verification code is:</p>'
+            f'<p style="font-size:34px;font-weight:bold;letter-spacing:8px;color:#0B132B;background:#FDF7E7;'
+            f'border-radius:12px;text-align:center;padding:16px 0;margin:16px 0">{escape(code)}</p>'
+            f'<p style="color:#64748b;font-size:13px">This code expires in 10 minutes. If you did not try to sign in, '
+            f'you can safely ignore this email &mdash; no one can access your account without it.</p>'
+            f'<p style="font-size:12px;color:#94a3b8;margin-top:24px">Sent by {escape(EMAIL_FROM_NAME)}. '
+            f'We never ask for your password by email.</p></div></td></tr></table>')
+
+def _newsletter_html(heading: str, title: str, summary: str, link: str, unsub: str) -> str:
+    return (f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;background:#FAF7F2">'
+            f'<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;padding:32px">'
+            f'<h1 style="color:#0B132B;margin:0 0 4px;font-size:20px">{escape(EMAIL_FROM_NAME)}</h1>'
+            f'<p style="color:#B8912B;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin:0 0 16px">{escape(heading)}</p>'
+            f'<h2 style="color:#0F172A;font-size:22px;margin:0 0 12px">{escape(title)}</h2>'
+            f'<p style="color:#334155;font-size:15px;line-height:1.6">{escape(summary or "")}</p>'
+            f'<p style="margin:24px 0"><a href="{escape(link)}" style="background:#0B132B;color:#fff;text-decoration:none;'
+            f'padding:12px 24px;border-radius:10px;font-weight:bold;display:inline-block">Read more</a></p>'
+            f'<hr style="border:none;border-top:1px solid #eee;margin:24px 0">'
+            f'<p style="font-size:12px;color:#94a3b8">You are receiving this because you subscribed to updates from '
+            f'{escape(EMAIL_FROM_NAME)}. <a href="{escape(unsub)}" style="color:#94a3b8">Unsubscribe</a>.</p>'
+            f'</div></td></tr></table>')
+
+# ----------------------------------------------------------------------------
+# IP geolocation (free, keyless) + client IP
+# ----------------------------------------------------------------------------
+_ip_geo_cache = {}
+
+def client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+async def geolocate_ip(ip: str) -> dict:
+    if not ip or ip.startswith(("127.", "10.", "192.168.", "172.")) or ip in ("localhost", "testclient", "::1"):
+        return {"country": "", "city": ""}
+    if ip in _ip_geo_cache:
+        return _ip_geo_cache[ip]
+    res = {"country": "", "city": ""}
+    try:
+        async with httpx.AsyncClient(timeout=6) as c:
+            r = await c.get(f"https://ipapi.co/{ip}/json/", headers={"User-Agent": "MyHealthcareLink/1.0"})
+            r.raise_for_status()
+            d = r.json()
+            res = {"country": d.get("country_name") or "", "city": d.get("city") or ""}
+    except Exception as e:
+        logger.error(f"IP geolocation failed for {ip}: {e}")
+    _ip_geo_cache[ip] = res
+    return res
+
+def public_base(request: Request) -> str:
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    return f"https://{host}" if host else ""
 
 # ----------------------------------------------------------------------------
 # Auth helpers
@@ -233,6 +382,10 @@ class SettingsUpdate(BaseModel):
     about_text: Optional[str] = None
     contact_email: Optional[str] = None
     contact_phone: Optional[str] = None
+    contact_address: Optional[str] = None
+    facebook_url: Optional[str] = None
+    instagram_url: Optional[str] = None
+    tiktok_url: Optional[str] = None
 
 # ----------------------------------------------------------------------------
 # Helpers to enrich providers with ratings
@@ -257,22 +410,87 @@ async def enrich_provider(doc: dict):
 # ----------------------------------------------------------------------------
 # Auth routes
 # ----------------------------------------------------------------------------
+class Verify2FAInput(BaseModel):
+    challenge: str
+    code: str
+
+class AccountUpdate(BaseModel):
+    current_password: str
+    new_email: Optional[EmailStr] = None
+    new_password: Optional[str] = None
+
+def _mask_email(e: str) -> str:
+    name, _, dom = e.partition("@")
+    masked = (name[0] + "*") if len(name) <= 2 else (name[0] + "*" * (len(name) - 2) + name[-1])
+    return f"{masked}@{dom}"
+
 @api_router.post("/auth/login")
 async def login(payload: LoginInput):
     email = payload.email.lower().strip()
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    token = create_access_token(str(user["_id"]), email)
+    code = f"{secrets.randbelow(1000000):06d}"
+    challenge = secrets.token_urlsafe(24)
+    await db.auth_challenges.insert_one({
+        "challenge": challenge, "user_id": str(user["_id"]), "email": email,
+        "code": code, "attempts": 0, "used": False,
+        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=10),
+        "created_at": now_iso(),
+    })
+    try:
+        await send_email(to=email, subject=f"Your {EMAIL_FROM_NAME} login code", html=_twofa_html(code))
+    except Exception as e:
+        logger.error(f"2FA email failed for {email}: {e}")
+        raise HTTPException(status_code=502, detail="Could not send your verification code. Please try again.")
+    return {"requires_2fa": True, "challenge": challenge, "email": _mask_email(email)}
+
+@api_router.post("/auth/verify-2fa")
+async def verify_2fa(payload: Verify2FAInput):
+    ch = await db.auth_challenges.find_one({"challenge": payload.challenge})
+    if not ch or ch.get("used"):
+        raise HTTPException(status_code=400, detail="This login session expired. Please sign in again.")
+    exp = ch["expires_at"]
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) > exp:
+        raise HTTPException(status_code=400, detail="Your code expired. Please sign in again.")
+    if ch.get("attempts", 0) >= 5:
+        raise HTTPException(status_code=429, detail="Too many attempts. Please sign in again.")
+    if payload.code.strip() != ch["code"]:
+        await db.auth_challenges.update_one({"challenge": payload.challenge}, {"$inc": {"attempts": 1}})
+        raise HTTPException(status_code=401, detail="Incorrect code. Please try again.")
+    await db.auth_challenges.update_one({"challenge": payload.challenge}, {"$set": {"used": True}})
+    user = await db.users.find_one({"_id": ObjectId(ch["user_id"])})
+    token = create_access_token(str(user["_id"]), ch["email"])
     return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user": {"id": str(user["_id"]), "email": email, "name": user.get("name", "Admin"), "role": user.get("role", "admin")},
+        "access_token": token, "token_type": "bearer",
+        "user": {"id": str(user["_id"]), "email": ch["email"], "name": user.get("name", "Admin"), "role": user.get("role", "admin")},
     }
 
 @api_router.get("/auth/me")
 async def me(admin: dict = Depends(get_current_admin)):
     return admin
+
+@api_router.put("/admin/account")
+async def update_account(payload: AccountUpdate, admin: dict = Depends(get_current_admin)):
+    user = await db.users.find_one({"_id": ObjectId(admin["id"])})
+    if not verify_password(payload.current_password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Your current password is incorrect.")
+    updates = {}
+    if payload.new_email:
+        ne = payload.new_email.lower().strip()
+        if ne != user["email"] and await db.users.find_one({"email": ne}):
+            raise HTTPException(status_code=400, detail="That email is already in use.")
+        updates["email"] = ne
+    if payload.new_password:
+        if len(payload.new_password) < 8:
+            raise HTTPException(status_code=400, detail="New password must be at least 8 characters.")
+        updates["password_hash"] = hash_password(payload.new_password)
+    if not updates:
+        raise HTTPException(status_code=400, detail="Nothing to update.")
+    await db.users.update_one({"_id": user["_id"]}, {"$set": updates})
+    return {"ok": True, "email": updates.get("email", user["email"])}
 
 # ----------------------------------------------------------------------------
 # Meta routes
@@ -819,7 +1037,7 @@ async def bulk_import_providers(file: UploadFile = File(...), admin: dict = Depe
 async def seed_admin():
     admin_email = os.environ["ADMIN_EMAIL"].lower().strip()
     admin_password = os.environ["ADMIN_PASSWORD"]
-    existing = await db.users.find_one({"email": admin_email})
+    existing = await db.users.find_one({"role": "admin"})
     if existing is None:
         await db.users.insert_one({
             "email": admin_email,
@@ -829,15 +1047,19 @@ async def seed_admin():
             "created_at": now_iso(),
         })
         logger.info(f"Seeded admin user {admin_email}")
-    elif not verify_password(admin_password, existing["password_hash"]):
-        await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
-        logger.info("Updated admin password from env")
 
 @app.on_event("startup")
 async def startup():
     await db.users.create_index("email", unique=True)
     await db.providers.create_index("id", unique=True)
     await db.reviews.create_index("provider_id")
+    await db.subscribers.create_index("email", unique=True)
+    await db.visits.create_index("session_id")
+    await db.visits.create_index("ts")
+    try:
+        await db.auth_challenges.create_index("expires_at", expireAfterSeconds=0)
+    except Exception:
+        pass
     if await db.categories.count_documents({}) == 0:
         for n in ["Specialty", "General Practitioner", "Hospital", "Clinic", "Pediatrics"]:
             await db.categories.insert_one({
@@ -856,6 +1078,173 @@ async def startup():
         logger.info("Storage initialized")
     except Exception as e:
         logger.error(f"Storage init failed: {e}")
+
+# ----------------------------------------------------------------------------
+# Visitor analytics
+# ----------------------------------------------------------------------------
+class TrackInput(BaseModel):
+    session_id: str
+    path: str
+    referrer: Optional[str] = ""
+
+class DurationInput(BaseModel):
+    visit_id: str
+    duration: float
+
+@api_router.post("/track")
+async def track_visit(payload: TrackInput, request: Request, bg: BackgroundTasks):
+    ip = client_ip(request)
+    vid = new_id()
+    await db.visits.insert_one({
+        "id": vid, "session_id": payload.session_id, "path": payload.path,
+        "referrer": payload.referrer or "", "ip": ip,
+        "country": "", "city": "",
+        "user_agent": request.headers.get("user-agent", ""),
+        "ts": now_iso(), "duration": 0,
+    })
+    bg.add_task(_geolocate_visit, vid, ip)
+    return {"visit_id": vid}
+
+async def _geolocate_visit(visit_id: str, ip: str):
+    geo = await geolocate_ip(ip)
+    if geo["country"] or geo["city"]:
+        await db.visits.update_one({"id": visit_id}, {"$set": {"country": geo["country"], "city": geo["city"]}})
+
+@api_router.post("/track/duration")
+async def track_duration(payload: DurationInput):
+    await db.visits.update_one({"id": payload.visit_id}, {"$set": {"duration": round(payload.duration)}})
+    return {"ok": True}
+
+@api_router.get("/admin/analytics")
+async def analytics(admin: dict = Depends(get_current_admin)):
+    visits = await db.visits.find({}, {"_id": 0}).sort("ts", -1).limit(3000).to_list(3000)
+    sessions = {}
+    for v in visits:
+        s = sessions.get(v["session_id"])
+        if not s:
+            s = sessions[v["session_id"]] = {
+                "session_id": v["session_id"], "ip": v.get("ip", ""),
+                "country": v.get("country", ""), "city": v.get("city", ""),
+                "user_agent": v.get("user_agent", ""),
+                "first_seen": v["ts"], "last_seen": v["ts"],
+                "total_duration": 0, "pages": [],
+            }
+        s["first_seen"] = min(s["first_seen"], v["ts"])
+        s["last_seen"] = max(s["last_seen"], v["ts"])
+        s["total_duration"] += v.get("duration", 0) or 0
+        if not s["country"] and v.get("country"):
+            s["country"] = v["country"]
+        if not s["city"] and v.get("city"):
+            s["city"] = v["city"]
+        s["pages"].append({"path": v["path"], "ts": v["ts"], "duration": v.get("duration", 0) or 0})
+    out = sorted(sessions.values(), key=lambda x: x["last_seen"], reverse=True)
+    for s in out:
+        s["page_count"] = len(s["pages"])
+        s["pages"].sort(key=lambda p: p["ts"])
+    total = await db.visits.count_documents({})
+    return {"sessions": out[:200], "total_sessions": len(sessions), "total_pageviews": total}
+
+# ----------------------------------------------------------------------------
+# Newsletter subscribers
+# ----------------------------------------------------------------------------
+class SubscribeInput(BaseModel):
+    email: EmailStr
+
+class SubscriberActive(BaseModel):
+    active: bool
+
+@api_router.post("/subscribe")
+async def subscribe(payload: SubscribeInput):
+    email = payload.email.lower().strip()
+    existing = await db.subscribers.find_one({"email": email})
+    if existing:
+        if not existing.get("active"):
+            await db.subscribers.update_one({"email": email}, {"$set": {"active": True}})
+        return {"ok": True, "message": "You're on the list!"}
+    await db.subscribers.insert_one({
+        "id": new_id(), "email": email, "active": True,
+        "unsubscribe_token": secrets.token_urlsafe(24), "created_at": now_iso(),
+    })
+    return {"ok": True, "message": "You're subscribed!"}
+
+@api_router.get("/admin/subscribers")
+async def list_subscribers(admin: dict = Depends(get_current_admin)):
+    return await db.subscribers.find({}, {"_id": 0}).sort("created_at", -1).to_list(5000)
+
+@api_router.post("/admin/subscribers")
+async def add_subscriber(payload: SubscribeInput, admin: dict = Depends(get_current_admin)):
+    email = payload.email.lower().strip()
+    if await db.subscribers.find_one({"email": email}):
+        raise HTTPException(status_code=400, detail="That email is already on the list.")
+    doc = {"id": new_id(), "email": email, "active": True,
+           "unsubscribe_token": secrets.token_urlsafe(24), "created_at": now_iso()}
+    await db.subscribers.insert_one(dict(doc))
+    return doc
+
+@api_router.put("/admin/subscribers/{sid}")
+async def update_subscriber(sid: str, payload: SubscriberActive, admin: dict = Depends(get_current_admin)):
+    res = await db.subscribers.update_one({"id": sid}, {"$set": {"active": payload.active}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Subscriber not found")
+    return {"ok": True}
+
+@api_router.delete("/admin/subscribers/{sid}")
+async def delete_subscriber(sid: str, admin: dict = Depends(get_current_admin)):
+    await db.subscribers.delete_one({"id": sid})
+    return {"ok": True}
+
+async def _send_newsletter(kind: str, doc: dict, base: str):
+    subs = await db.subscribers.find({"active": True}, {"_id": 0}).to_list(5000)
+    if kind == "article":
+        heading = "New article on My Healthcare Link"
+        title = doc.get("title", "")
+        summary = doc.get("excerpt", "")
+        link = f"{base}/blog/{doc.get('slug', '')}"
+    else:
+        heading = "New event on My Healthcare Link"
+        title = doc.get("name", "")
+        summary = doc.get("description", "")
+        link = f"{base}/events/{doc.get('id', '')}"
+    for s in subs:
+        unsub = f"{base}/api/newsletter/unsubscribe?token={s['unsubscribe_token']}"
+        try:
+            await send_email(to=s["email"], subject=f"{heading}: {title}",
+                             html=_newsletter_html(heading, title, summary, link, unsub))
+        except Exception as e:
+            logger.error(f"Newsletter send to {s['email']} failed: {e}")
+        await asyncio.sleep(0.4)
+
+@api_router.post("/admin/articles/{aid}/notify")
+async def notify_article(aid: str, request: Request, bg: BackgroundTasks, admin: dict = Depends(get_current_admin)):
+    doc = await db.articles.find_one({"id": aid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Article not found")
+    count = await db.subscribers.count_documents({"active": True})
+    bg.add_task(_send_newsletter, "article", doc, public_base(request))
+    return {"ok": True, "queued": count}
+
+@api_router.post("/admin/events/{eid}/notify")
+async def notify_event(eid: str, request: Request, bg: BackgroundTasks, admin: dict = Depends(get_current_admin)):
+    doc = await db.events.find_one({"id": eid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Event not found")
+    count = await db.subscribers.count_documents({"active": True})
+    bg.add_task(_send_newsletter, "event", doc, public_base(request))
+    return {"ok": True, "queued": count}
+
+@api_router.get("/newsletter/unsubscribe")
+async def newsletter_unsubscribe(token: str):
+    res = await db.subscribers.update_one({"unsubscribe_token": token}, {"$set": {"active": False}})
+    ok = res.matched_count > 0
+    msg = ("You've been unsubscribed. You won't receive further emails from us."
+           if ok else "This unsubscribe link is invalid or has already been used.")
+    html = (f'<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<title>Unsubscribe</title></head>'
+            f'<body style="font-family:Arial,sans-serif;background:#FAF7F2;padding:60px 20px;text-align:center">'
+            f'<div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;padding:40px">'
+            f'<h1 style="color:#0B132B">My Healthcare Link</h1>'
+            f'<p style="color:#334155;font-size:16px">{escape(msg)}</p></div></body></html>')
+    return HTMLResponse(content=html)
 
 app.include_router(api_router)
 
