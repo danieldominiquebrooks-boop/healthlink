@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, Activity, Tags, BookOpen, Calendar, MessageSquare, Settings as SettingsIcon,
   Plus, Pencil, Trash2, LogOut, Check, X, Eye, ExternalLink, ShieldCheck,
-  Upload, Download, Image as ImageIcon, Star, MapPinned,
+  Upload, Download, Image as ImageIcon, Star,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import { Switch } from "@/components/ui/switch";
 import { StarRating } from "@/components/StarRating";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { HoursEditor } from "@/components/HoursEditor";
-import { MiniMapPicker } from "@/components/MiniMapPicker";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -206,16 +205,6 @@ function EntityManager({ entity }) {
 
   const syncCategories = null;
 
-  const autoLocate = async () => {
-    try {
-      const { data } = await api.post("/admin/providers/geocode");
-      toast.success(`Located ${data.updated} provider(s)${data.remaining ? ` · ${data.remaining} left (run again)` : ""}`);
-      load();
-    } catch (err) {
-      toast.error(formatApiError(err.response?.data?.detail));
-    }
-  };
-
   useEffect(() => { load(); }, [load]);
 
   const openNew = () => {
@@ -325,11 +314,6 @@ function EntityManager({ entity }) {
           <p className="text-sm text-muted-foreground">{items.length} total</p>
         </div>
         <div className="flex items-center gap-2">
-          {entity === "providers" && (
-            <Button variant="outline" onClick={autoLocate} data-testid="auto-locate-btn" className="border-[#D4AF37]/50 text-[#B8912B] hover:bg-[#FDF7E7]">
-              <MapPinned size={16} className="mr-1.5" /> Auto-locate
-            </Button>
-          )}
           {entity === "providers" && selected.length > 0 && (
             <Button variant="outline" onClick={() => setBulkConfirm(true)} data-testid="bulk-delete-btn" className="border-red-300 text-red-600 hover:bg-red-50">
               <Trash2 size={16} className="mr-1.5" /> Delete selected ({selected.length})
@@ -405,12 +389,6 @@ function EntityManager({ entity }) {
             {schema.map((s) => (
               <Field key={s.key} field={s} value={form[s.key]} form={form} onChange={(v) => setField(s.key, v)} />
             ))}
-            {entity === "providers" && (
-              <div className="sm:col-span-2">
-                <label className="text-sm font-medium text-[#0F172A] mb-1.5 block">Locate on map</label>
-                <MiniMapPicker form={form} setField={setField} />
-              </div>
-            )}
           </div>
           <DialogFooter>
             {entity === "articles" && (
