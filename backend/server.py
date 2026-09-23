@@ -181,14 +181,22 @@ async def send_email(*, to: str, subject: str, html: str, reply_to: str = None):
     payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
     if reply_to or EMAIL_REPLY_TO:
         payload["contact_email"] = reply_to or EMAIL_REPLY_TO
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            f"{EMAIL_BASE_URL}/api/v1/email/send",
-            headers={"X-Email-Key": EMAIL_KEY},
-            json=payload,
-        )
-    resp.raise_for_status()
-    return resp.json().get("id")
+    last = None
+    for attempt in range(3):
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{EMAIL_BASE_URL}/api/v1/email/send",
+                headers={"X-Email-Key": EMAIL_KEY},
+                json=payload,
+            )
+        if resp.status_code == 429 and attempt < 2:
+            await asyncio.sleep(2 * (attempt + 1))  # backoff on rate limit
+            last = resp
+            continue
+        resp.raise_for_status()
+        return resp.json().get("id")
+    if last is not None:
+        last.raise_for_status()
 
 def _twofa_html(code: str) -> str:
     return (f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;background:#FAF7F2">'
@@ -430,19 +438,32 @@ async def login(payload: LoginInput):
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    uid = str(user["_id"])
+    now = datetime.now(timezone.utc)
+    # Reuse a still-fresh, unused code (avoids duplicate emails + Resend rate limits
+    # when the admin clicks Continue/Resend repeatedly). Stored only after a successful send.
+    recent = await db.auth_challenges.find_one({
+        "user_id": uid, "used": False,
+        "expires_at": {"$gt": now},
+        "created_dt": {"$gt": now - timedelta(seconds=90)},
+    })
+    if recent:
+        return {"requires_2fa": True, "challenge": recent["challenge"], "email": _mask_email(email)}
     code = f"{secrets.randbelow(1000000):06d}"
     challenge = secrets.token_urlsafe(24)
-    await db.auth_challenges.insert_one({
-        "challenge": challenge, "user_id": str(user["_id"]), "email": email,
-        "code": code, "attempts": 0, "used": False,
-        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=10),
-        "created_at": now_iso(),
-    })
     try:
         await send_email(to=email, subject=f"Your {EMAIL_FROM_NAME} login code", html=_twofa_html(code))
     except Exception as e:
         logger.error(f"2FA email failed for {email}: {e}")
-        raise HTTPException(status_code=502, detail="Could not send your verification code. Please try again.")
+        raise HTTPException(status_code=502, detail="Could not send your verification code right now. Please wait a moment and try again.")
+    # Invalidate older unused challenges so only the newest code is valid.
+    await db.auth_challenges.update_many({"user_id": uid, "used": False}, {"$set": {"used": True}})
+    await db.auth_challenges.insert_one({
+        "challenge": challenge, "user_id": uid, "email": email,
+        "code": code, "attempts": 0, "used": False,
+        "expires_at": now + timedelta(minutes=10),
+        "created_dt": now, "created_at": now_iso(),
+    })
     return {"requires_2fa": True, "challenge": challenge, "email": _mask_email(email)}
 
 @api_router.post("/auth/verify-2fa")
