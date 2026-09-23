@@ -54,6 +54,8 @@ Responsive Caribbean healthcare directory web app for phone/tablet/desktop. Prov
 - (2026-06) Admin providers list filterable by Country, Parish/Island, Category (client-side).
 - (2026-06) Visitor analytics: VisitTracker (in Layout) posts /track per route + /track/duration on leave; backend resolves country/city from IP via ipapi.co in a background task (track returns <1s); admin Analytics tab shows sessions (IP, country/city, pages, time-on-site).
 - (2026-06) Newsletter: popup on Blog & Events (every visit until subscribed), POST /subscribe; admin Subscribers tab (add/toggle-active/delete); per-article/event "Notify subscribers" (POST /admin/{articles|events}/{id}/notify) emails active subscribers with a one-click unsubscribe link (GET /newsletter/unsubscribe -> sets active=false). Emails go through the Resend guardrail gate. Verified iteration-12 (100% backend+frontend).
+- (2026-06) Welcome email: POST /subscribe now sends a friendly branded welcome email (background task, with unsubscribe link) on new subscribe and on reactivation. Verified 202 for real address (Resend rejects example.com test addresses with 422, handled gracefully).
+- (2026-06) Split specialties: combined specialty cells (e.g. "Cardiology;Internal Medicine/Pediatrics") are split on [;|/] into a `specialties` array on providers (CSV import, admin create/update, one-time startup backfill). Primary `specialty` = first value. /specialties lists each individually, specialty filter + search match the array, category sync creates separate specialty categories. Verified via curl.
 
 ## Backlog
 - P1: Rich-text article editor; article categories management UI.

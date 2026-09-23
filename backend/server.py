@@ -311,6 +311,7 @@ class LoginInput(BaseModel):
 class ProviderBase(BaseModel):
     name: str
     specialty: Optional[str] = ""
+    specialties: List[str] = Field(default_factory=list)
     category: Optional[str] = ""
     niches: List[str] = Field(default_factory=list)
     description: Optional[str] = ""
@@ -526,8 +527,14 @@ async def get_countries():
 
 @api_router.get("/specialties")
 async def get_specialties():
-    vals = await db.providers.distinct("specialty", {"active": True})
-    return sorted([v for v in vals if v and v.strip()])
+    out = set()
+    for v in await db.providers.distinct("specialties", {"active": True}):
+        if v and str(v).strip():
+            out.add(str(v).strip())
+    for v in await db.providers.distinct("specialty", {"active": True}):
+        for part in split_specialties(v):
+            out.add(part)
+    return sorted(out)
 
 @api_router.get("/stats")
 async def get_stats():
@@ -579,7 +586,7 @@ async def list_providers(
     if region and region not in ("All Parishes", "All Parishes/Islands"):
         query["region"] = region
     if specialty:
-        query["specialty"] = specialty
+        query["specialties"] = specialty
     if category:
         query["category"] = category
     if accepting is not None:
@@ -589,7 +596,7 @@ async def list_providers(
     if q:
         rx = {"$regex": re.escape(q), "$options": "i"}
         query["$or"] = [
-            {"name": rx}, {"specialty": rx}, {"description": rx},
+            {"name": rx}, {"specialty": rx}, {"specialties": rx}, {"description": rx},
             {"category": rx}, {"niches": rx}, {"services": rx},
         ]
     docs = await db.providers.find(query).to_list(limit)
@@ -633,6 +640,24 @@ async def geocode_address(query: str):
 def _addr_query(doc: dict) -> str:
     return ", ".join([p for p in [doc.get("address"), doc.get("region"), doc.get("country")] if p])
 
+def split_specialties(value) -> List[str]:
+    if not value:
+        return []
+    seen, out = set(), []
+    for p in re.split(r"[;|/]", str(value)):
+        n = p.strip()
+        if n and n.lower() not in seen:
+            seen.add(n.lower())
+            out.append(n)
+    return out
+
+def _apply_specialties(doc: dict) -> dict:
+    lst = split_specialties(doc.get("specialty", ""))
+    doc["specialties"] = lst
+    if lst:
+        doc["specialty"] = lst[0]
+    return doc
+
 @api_router.get("/admin/geocode")
 async def geocode_lookup(q: str, admin: dict = Depends(get_current_admin)):
     res = await geocode_address(q)
@@ -643,6 +668,7 @@ async def geocode_lookup(q: str, admin: dict = Depends(get_current_admin)):
 @api_router.post("/admin/providers")
 async def create_provider(payload: ProviderBase, admin: dict = Depends(get_current_admin)):
     doc = payload.model_dump()
+    _apply_specialties(doc)
     doc["id"] = new_id()
     doc["created_at"] = now_iso()
     if (doc.get("latitude") is None or doc.get("longitude") is None):
@@ -655,6 +681,7 @@ async def create_provider(payload: ProviderBase, admin: dict = Depends(get_curre
 @api_router.put("/admin/providers/{provider_id}")
 async def update_provider(provider_id: str, payload: ProviderBase, admin: dict = Depends(get_current_admin)):
     doc = payload.model_dump()
+    _apply_specialties(doc)
     if (doc.get("latitude") is None or doc.get("longitude") is None):
         geo = await geocode_address(_addr_query(doc))
         if geo:
@@ -745,7 +772,14 @@ async def sync_categories(admin: dict = Depends(get_current_admin)):
 
     for c in await db.providers.distinct("category"):
         await add(c, "category")
+    specs = set()
+    for s in await db.providers.distinct("specialties"):
+        if s:
+            specs.add(s)
     for s in await db.providers.distinct("specialty"):
+        for part in split_specialties(s):
+            specs.add(part)
+    for s in sorted(specs):
         await add(s, "specialty")
     for nn in await db.providers.distinct("niches"):
         await add(nn, "niche")
@@ -1046,6 +1080,7 @@ async def bulk_import_providers(file: UploadFile = File(...), admin: dict = Depe
             else:
                 doc[k] = val
         doc["name"] = name
+        _apply_specialties(doc)
         doc["id"] = new_id()
         doc["created_at"] = now_iso()
         await db.providers.insert_one(doc)
@@ -1081,6 +1116,12 @@ async def startup():
         await db.auth_challenges.create_index("expires_at", expireAfterSeconds=0)
     except Exception:
         pass
+    async for p in db.providers.find({"specialties": {"$exists": False}}, {"specialty": 1}):
+        lst = split_specialties(p.get("specialty", ""))
+        upd = {"specialties": lst}
+        if lst:
+            upd["specialty"] = lst[0]
+        await db.providers.update_one({"_id": p["_id"]}, {"$set": upd})
     if await db.categories.count_documents({}) == 0:
         for n in ["Specialty", "General Practitioner", "Hospital", "Clinic", "Pediatrics"]:
             await db.categories.insert_one({
@@ -1174,18 +1215,41 @@ class SubscribeInput(BaseModel):
 class SubscriberActive(BaseModel):
     active: bool
 
+def _welcome_html(unsub: str) -> str:
+    return (f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;background:#FAF7F2">'
+            f'<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;padding:32px">'
+            f'<h1 style="color:#0B132B;margin:0 0 8px;font-size:22px">Welcome to {escape(EMAIL_FROM_NAME)}</h1>'
+            f'<p style="color:#334155;font-size:15px;line-height:1.6">Thanks for joining our mailing list! '
+            f'You\'ll be the first to know whenever we publish a new health article or add a healthcare event across the Caribbean.</p>'
+            f'<p style="color:#334155;font-size:15px;line-height:1.6">Stay well,<br>The {escape(EMAIL_FROM_NAME)} team</p>'
+            f'<hr style="border:none;border-top:1px solid #eee;margin:24px 0">'
+            f'<p style="font-size:12px;color:#94a3b8">You are receiving this because you subscribed to updates from '
+            f'{escape(EMAIL_FROM_NAME)}. <a href="{escape(unsub)}" style="color:#94a3b8">Unsubscribe</a>.</p>'
+            f'</div></td></tr></table>')
+
+async def _send_welcome(email: str, token: str, base: str):
+    unsub = f"{base}/api/newsletter/unsubscribe?token={token}"
+    try:
+        await send_email(to=email, subject=f"Welcome to {EMAIL_FROM_NAME}", html=_welcome_html(unsub))
+    except Exception as e:
+        logger.error(f"Welcome email to {email} failed: {e}")
+
 @api_router.post("/subscribe")
-async def subscribe(payload: SubscribeInput):
+async def subscribe(payload: SubscribeInput, request: Request, bg: BackgroundTasks):
     email = payload.email.lower().strip()
+    base = public_base(request)
     existing = await db.subscribers.find_one({"email": email})
     if existing:
         if not existing.get("active"):
             await db.subscribers.update_one({"email": email}, {"$set": {"active": True}})
+            bg.add_task(_send_welcome, email, existing["unsubscribe_token"], base)
         return {"ok": True, "message": "You're on the list!"}
+    token = secrets.token_urlsafe(24)
     await db.subscribers.insert_one({
         "id": new_id(), "email": email, "active": True,
-        "unsubscribe_token": secrets.token_urlsafe(24), "created_at": now_iso(),
+        "unsubscribe_token": token, "created_at": now_iso(),
     })
+    bg.add_task(_send_welcome, email, token, base)
     return {"ok": True, "message": "You're subscribed!"}
 
 @api_router.get("/admin/subscribers")
