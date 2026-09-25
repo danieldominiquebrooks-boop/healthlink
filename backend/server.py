@@ -536,6 +536,30 @@ async def get_specialties():
             out.add(part)
     return sorted(out)
 
+# Map ISO country codes -> our Caribbean country names (constants.js COUNTRIES keys)
+CARIB_ISO = {
+    "BB": "Barbados", "JM": "Jamaica", "TT": "Trinidad & Tobago", "LC": "Saint Lucia",
+    "BS": "Bahamas", "KY": "Cayman Islands", "GD": "Grenada", "AG": "Antigua & Barbuda",
+    "DM": "Dominica", "VC": "Saint Vincent & the Grenadines", "KN": "Saint Kitts & Nevis",
+    "GY": "Guyana",
+}
+
+@api_router.get("/geo/detect")
+async def geo_detect(request: Request):
+    ip = client_ip(request)
+    if not ip or ip.startswith(("127.", "10.", "192.168.", "172.")) or ip in ("localhost", "testclient", "::1"):
+        return {"country": "", "region": "", "city": ""}
+    try:
+        async with httpx.AsyncClient(timeout=6) as c:
+            r = await c.get(f"https://ipapi.co/{ip}/json/", headers={"User-Agent": "MyHealthcareLink/1.0"})
+            r.raise_for_status()
+            d = r.json()
+        code = (d.get("country_code") or "").upper()
+        return {"country": CARIB_ISO.get(code, ""), "region": d.get("region") or "", "city": d.get("city") or ""}
+    except Exception as e:
+        logger.error(f"geo detect failed for {ip}: {e}")
+        return {"country": "", "region": "", "city": ""}
+
 @api_router.get("/stats")
 async def get_stats():
     providers = await db.providers.count_documents({"active": True})
