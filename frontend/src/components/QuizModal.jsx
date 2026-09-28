@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
-  Dialog, DialogContent,
+  Dialog, DialogContent, DialogTitle,
 } from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -89,6 +89,7 @@ export function QuizModal() {
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) dismiss(); }}>
       <DialogContent className="sm:max-w-md p-0 overflow-hidden border-0 rounded-3xl" data-testid="quiz-modal">
+        <DialogTitle className="sr-only">{quiz.title}</DialogTitle>
         {/* Colorful gradient header */}
         <div className="relative bg-gradient-to-br from-[#E89D93] via-[#EFB6A0] to-[#D4AF37] px-6 pt-7 pb-6 text-center overflow-hidden">
           <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full bg-white/15" />

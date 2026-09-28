@@ -1637,7 +1637,7 @@ async def export_quiz_csv(qid: str, admin: dict = Depends(get_current_admin)):
         row += [amap.get(q.get("id"), "") for q in questions]
         w.writerow(row)
     fname = re.sub(r"[^a-z0-9]+", "-", (quiz.get("title") or "quiz").lower()).strip("-") or "quiz"
-    return Response(content=buf.getvalue(), media_type="text/csv",
+    return Response(content="\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{fname}-responses.csv"'})
 
 @api_router.get("/regions/counts")

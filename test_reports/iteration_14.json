@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 14 - Quiz enhancements (points+tiers, scheduling, CSV export, colorful popup) + region provider counts. Backend: 15/15 pytest passed in /app/backend/tests/test_iter14_quiz_enhancements.py (run with -n 0 to avoid xdist parallel active-quiz race). Covered: create quiz with object-shape options {text,points} and result_tiers roundtrip; /quiz/submit scores correctly (High+Yes -> 12 pts stored on response, Low+No -> 1 pt); per-question analysis counts still aggregate with object options and question_id mapping; /quiz/active returns null when start_date is future OR end_date is past, and returns the quiz within [start,end]; public /quiz/active exposes options as plain strings, no points/answer leak; CSV export returns text/csv with header 'Date,Name,Email,Age,Points,Q1?,Q2?' and Points column = 7 (Mid=5 + Yes=2); CSV requires auth (403 without); /regions/counts?country=Bahamas returns {parish: int>0} with 8+ parishes, unknown country -> {}; regression on /providers, /settings, /about, /admin/analytics. Frontend Playwright (reused JWT via localStorage): header region dropdown shows counts next to each parish (New Providence 391, Grand Bahama 58, Abaco 8, Eleuthera 3, Exuma 1, Long Island 1); colorful quiz-modal auto-appears (gradient header, progress bar) and full flow name+email -> age -> quiz-option-0 x2 -> submit sets hl_quiz_done_<id>=1 + hl_subscribed=1; response points=15 confirmed via /admin/quizzes/{id}/analysis; QuizEditor exposes quiz-start-date, quiz-end-date, add-tier-btn, tier-min-0, tier-msg-0, remove-tier-0, option-0-0, option-points-0-0, save-quiz-btn; QuizAnalysis shows quiz-total-responses=1, export-quiz-csv-btn visible, respondent-0 row includes '15 pts' and per-answer breakdown. Cleanup: TEST_UI14 quiz deleted, test_ui14_* subscribers removed, TEST_Q14_* quizzes removed by fixtures.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "QuizModal", "issues": ["Radix DialogContent renders without an accessible DialogTitle / aria-describedby - console warns 'DialogContent requires a DialogTitle for the component to be accessible for screen reader users'. Wrap the visual title with VisuallyHidden or add sr-only DialogTitle. Same warning likely applies to any modal that hides the title (a11y-only, non-blocking)."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter14_quiz_enhancements.py",
+    "/app/test_reports/pytest/iter14.xml"
+  ],
+  "action_items": [
+    "(Minor a11y) Add a VisuallyHidden <DialogTitle> inside QuizModal's DialogContent to silence Radix a11y warnings.",
+    "(Optional / carry-over from iter13) In /quiz/submit already filters answers to those whose question_id is in qmap - no action needed, previous review item resolved."
+  ],
+  "critical_code_review_comments": [
+    "Points calculation in /quiz/submit matches option by _opt_text equality against submitted answer string; if two options in the same question share the same text (should not happen but is not validated), points would double-count. Consider unique-text validation server-side on create/update.",
+    "_tier_message trusts result_tiers stored via admin API; there is no upper cap on the list length. Not exploitable but worth capping to a reasonable N (~20) in QuizBase.",
+    "CSV export uses csv.writer with StringIO but the response is served as text/csv without a BOM; opening in Excel with non-ASCII names may show mojibake. Consider prefixing '\ufeff' or setting media_type='text/csv; charset=utf-8'.",
+    "/regions/counts has no country param validation - passing empty string returns {} (fine). Consider adding a Query(..., min_length=1) for clarity.",
+    "QuizOption.points is int with no min/max - negative points accepted. If that is intentional (penalty scoring) it is fine; otherwise add ge=0."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter14_quiz_enhancements.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin: danieldominiquebrooks@gmail.com / HealthLink@2026! (unchanged). Fetched ONE JWT via login+2FA (code from mongo db.auth_challenges) and reused via HL_TOKEN env for pytest AND via localStorage.setItem('hl_token',...) for Playwright to avoid Resend 429.",
+  "seed_data_creation": "Created ephemeral TEST_Q14_*, TEST_UI14 quizzes and test_pts_*, test_low_*, test_csv_*, test_ui14_* subscribers during test runs - all deleted at teardown (verified). No leftover data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run backend: HL_TOKEN=<jwt> pytest /app/backend/tests/test_iter14_quiz_enhancements.py -v -n 0 --junitxml=/app/test_reports/pytest/iter14.xml (MUST use -n 0 or xdist parallel workers will race on the single-active-quiz enforcement and one test can flap). Prior iter13 tests still pass. Popup delay is SECONDS not ms (set 1 for fast e2e). hl_quiz_dismissed (sessionStorage) + hl_quiz_done_<id> (localStorage) suppress popup - clear both before UI tests. Region counts fetch: GET /api/regions/counts?country=Bahamas. CSV export uses admin bearer via query? No - via Authorization header; frontend downloads by fetching with axios+blob (see AdminDashboard exportCsv).",
+  "rca of the issue": "No production issues found. One pytest flake under xdist parallel execution: 'test_within_window_shows_active' failed because a parallel worker's active quiz superseded ours (single-active enforcement is global). Resolution: run this file with -n 0 (single worker). Recommend adding a pytest.mark.serial or module-level xdist_group to force serial execution of quiz-scheduling tests."
+}
