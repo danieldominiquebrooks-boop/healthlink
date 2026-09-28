@@ -908,21 +908,29 @@ async def admin_list_articles(admin: dict = Depends(get_current_admin)):
     return docs
 
 @api_router.post("/admin/articles")
-async def create_article(payload: ArticleBase, admin: dict = Depends(get_current_admin)):
+async def create_article(payload: ArticleBase, request: Request, bg: BackgroundTasks, admin: dict = Depends(get_current_admin)):
     doc = payload.model_dump()
     doc["id"] = new_id()
     doc["slug"] = slugify(payload.title) + "-" + doc["id"][:6]
     doc["created_at"] = now_iso()
+    doc["announced"] = bool(doc.get("published"))
     await db.articles.insert_one(doc)
     doc.pop("_id", None)
+    if doc.get("published"):
+        bg.add_task(_send_newsletter, "article", doc, public_base(request))
     return doc
 
 @api_router.put("/admin/articles/{aid}")
-async def update_article(aid: str, payload: ArticleBase, admin: dict = Depends(get_current_admin)):
-    res = await db.articles.update_one({"id": aid}, {"$set": payload.model_dump()})
-    if res.matched_count == 0:
+async def update_article(aid: str, payload: ArticleBase, request: Request, bg: BackgroundTasks, admin: dict = Depends(get_current_admin)):
+    existing = await db.articles.find_one({"id": aid})
+    if not existing:
         raise HTTPException(status_code=404, detail="Article not found")
+    await db.articles.update_one({"id": aid}, {"$set": payload.model_dump()})
     doc = await db.articles.find_one({"id": aid}, {"_id": 0})
+    if doc.get("published") and not existing.get("announced"):
+        await db.articles.update_one({"id": aid}, {"$set": {"announced": True}})
+        doc["announced"] = True
+        bg.add_task(_send_newsletter, "article", doc, public_base(request))
     return doc
 
 @api_router.delete("/admin/articles/{aid}")
@@ -959,20 +967,28 @@ async def admin_list_events(admin: dict = Depends(get_current_admin)):
     return docs
 
 @api_router.post("/admin/events")
-async def create_event(payload: EventBase, admin: dict = Depends(get_current_admin)):
+async def create_event(payload: EventBase, request: Request, bg: BackgroundTasks, admin: dict = Depends(get_current_admin)):
     doc = payload.model_dump()
     doc["id"] = new_id()
     doc["created_at"] = now_iso()
+    doc["announced"] = bool(doc.get("published"))
     await db.events.insert_one(doc)
     doc.pop("_id", None)
+    if doc.get("published"):
+        bg.add_task(_send_newsletter, "event", doc, public_base(request))
     return doc
 
 @api_router.put("/admin/events/{eid}")
-async def update_event(eid: str, payload: EventBase, admin: dict = Depends(get_current_admin)):
-    res = await db.events.update_one({"id": eid}, {"$set": payload.model_dump()})
-    if res.matched_count == 0:
+async def update_event(eid: str, payload: EventBase, request: Request, bg: BackgroundTasks, admin: dict = Depends(get_current_admin)):
+    existing = await db.events.find_one({"id": eid})
+    if not existing:
         raise HTTPException(status_code=404, detail="Event not found")
+    await db.events.update_one({"id": eid}, {"$set": payload.model_dump()})
     doc = await db.events.find_one({"id": eid}, {"_id": 0})
+    if doc.get("published") and not existing.get("announced"):
+        await db.events.update_one({"id": eid}, {"$set": {"announced": True}})
+        doc["announced"] = True
+        bg.add_task(_send_newsletter, "event", doc, public_base(request))
     return doc
 
 @api_router.delete("/admin/events/{eid}")
@@ -1550,7 +1566,9 @@ async def submit_quiz(payload: QuizSubmit, request: Request, bg: BackgroundTasks
         "answers": answers, "points": total, "created_at": now_iso(),
     })
     bg.add_task(_send_quiz_result, email, payload.name.strip(), message, answers, total, token, base)
-    return {"ok": True, "message": "Thanks for completing the quiz! Check your inbox for your results."}
+    max_points = sum(max([_opt_points(o) for o in x.get("options", [])] or [0]) for x in quiz.get("questions", []))
+    return {"ok": True, "message": "Thanks for completing the quiz! Check your inbox for your results.",
+            "points": total, "max_points": max_points, "result_message": message}
 
 @api_router.get("/admin/quizzes")
 async def list_quizzes(admin: dict = Depends(get_current_admin)):

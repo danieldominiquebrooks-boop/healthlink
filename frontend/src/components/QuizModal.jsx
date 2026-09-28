@@ -26,6 +26,7 @@ export function QuizModal() {
   const [age, setAge] = useState("");
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
 
   useEffect(() => {
     let timer;
@@ -77,8 +78,7 @@ export function QuizModal() {
       });
       localStorage.setItem(`hl_quiz_done_${quiz.id}`, "1");
       localStorage.setItem("hl_subscribed", "1");
-      toast.success(data.message || "Thanks for completing the quiz!");
-      setOpen(false);
+      setResult({ points: data.points || 0, max: data.max_points || 0, message: data.result_message || "" });
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
     } finally {
@@ -103,15 +103,20 @@ export function QuizModal() {
           </motion.span>
           <h2 className="relative mt-3 font-display text-2xl font-extrabold text-white drop-shadow-sm">{quiz.title}</h2>
           <p className="relative mt-1 text-sm text-white/90">
-            {step === 0 ? (quiz.description || "Take our fun quiz & get your results by email!") : `Step ${step + 1} of ${totalSteps}`}
+            {result ? "All done — here are your results!" : step === 0 ? (quiz.description || "Take our fun quiz & get your results by email!") : `Step ${step + 1} of ${totalSteps}`}
           </p>
           {/* progress bar */}
-          <div className="relative mt-4 h-2 rounded-full bg-white/25 overflow-hidden">
-            <motion.div className="h-full rounded-full bg-white" animate={{ width: `${progress}%` }} transition={{ duration: 0.35 }} />
-          </div>
+          {!result && (
+            <div className="relative mt-4 h-2 rounded-full bg-white/25 overflow-hidden">
+              <motion.div className="h-full rounded-full bg-white" animate={{ width: `${progress}%` }} transition={{ duration: 0.35 }} />
+            </div>
+          )}
         </div>
 
         <div className="px-6 py-5 space-y-4 bg-white">
+          {result ? (
+            <ResultView result={result} onDone={() => setOpen(false)} />
+          ) : (<>
           {step === 0 && (
             <>
               <div>
@@ -181,8 +186,38 @@ export function QuizModal() {
           <div className="text-center">
             <button type="button" onClick={dismiss} data-testid="quiz-dismiss-btn" className="text-xs text-muted-foreground hover:text-[#0F172A]">No thanks</button>
           </div>
+          </>)}
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function renderBold(text) {
+  return String(text || "").split(/(\*\*[^*]+\*\*)/g).map((p, i) =>
+    p.startsWith("**") && p.endsWith("**")
+      ? <strong key={i}>{p.slice(2, -2)}</strong>
+      : <React.Fragment key={i}>{p}</React.Fragment>
+  );
+}
+
+function ResultView({ result, onDone }) {
+  const pct = result.max ? Math.round((result.points / result.max) * 100) : 0;
+  return (
+    <div className="text-center py-2" data-testid="quiz-result">
+      <motion.div
+        initial={{ scale: 0, rotate: -15 }} animate={{ scale: 1, rotate: 0 }}
+        transition={{ type: "spring", stiffness: 240, damping: 14 }}
+        className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-[#E89D93] to-[#D4AF37] flex items-center justify-center text-white shadow-lg mb-3"
+      >
+        <span className="font-display text-2xl font-extrabold" data-testid="quiz-result-score">{result.points}{result.max ? `/${result.max}` : ""}</span>
+      </motion.div>
+      <p className="text-sm font-semibold text-[#B8912B] uppercase tracking-wide">Your score{result.max ? ` · ${pct}%` : ""}</p>
+      {result.message && (
+        <p className="mt-3 text-[#334155] leading-relaxed" data-testid="quiz-result-message">{renderBold(result.message)}</p>
+      )}
+      <p className="mt-3 text-xs text-muted-foreground">We've also emailed your full results.</p>
+      <Button onClick={onDone} data-testid="quiz-result-done" className="mt-5 w-full h-11 rounded-xl text-white font-bold bg-gradient-to-r from-[#E89D93] to-[#D4AF37]">Done</Button>
+    </div>
   );
 }
