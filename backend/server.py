@@ -1488,8 +1488,8 @@ async def submit_quiz(payload: QuizSubmit, request: Request, bg: BackgroundTasks
     base = public_base(request)
     token = await _upsert_subscriber(email, base)
     qmap = {x.get("id"): x.get("text", "") for x in quiz.get("questions", [])}
-    answers = [{"question_id": a.question_id, "question": a.question or qmap.get(a.question_id, ""), "answer": a.answer}
-               for a in payload.answers]
+    answers = [{"question_id": a.question_id, "question": qmap.get(a.question_id, ""), "answer": a.answer}
+               for a in payload.answers if a.question_id in qmap]
     await db.quiz_responses.insert_one({
         "id": new_id(), "quiz_id": payload.quiz_id, "quiz_title": quiz.get("title", ""),
         "name": payload.name.strip(), "email": email, "age": (payload.age or "").strip(),
