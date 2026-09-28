@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X, ChevronDown, MapPin, Search, Heart, Sun, Moon } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { InstallButton } from "@/components/InstallButton";
 import { NAV_LINKS, COUNTRY_NAMES, regionsFor, ALL_COUNTRIES, ALL_REGIONS } from "@/lib/constants";
+import api from "@/lib/api";
 import { useLocation as useAppLocation } from "@/context/LocationContext";
 import { useSaved } from "@/context/SavedContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -23,6 +24,12 @@ export function Header() {
   const navigate = useNavigate();
   const countryOptions = [ALL_COUNTRIES, ...COUNTRY_NAMES];
   const regionOptions = [ALL_REGIONS, ...regionsFor(country)];
+  const [regionCounts, setRegionCounts] = useState({});
+
+  useEffect(() => {
+    if (!country || country === ALL_COUNTRIES) { setRegionCounts({}); return; }
+    api.get("/regions/counts", { params: { country } }).then((r) => setRegionCounts(r.data || {})).catch(() => setRegionCounts({}));
+  }, [country]);
 
   const dark = theme === "dark";
   const iconBtn = dark
@@ -106,7 +113,10 @@ export function Header() {
                       onClick={() => setRegion(opt)}
                       className={region === opt ? "bg-[#FDF0EE] text-[#0F172A] font-semibold" : ""}
                     >
-                      {opt}
+                      <span className="flex-1">{opt}</span>
+                      {opt !== ALL_REGIONS && regionCounts[opt] != null && (
+                        <span className="ml-2 text-xs text-muted-foreground tabular-nums">{regionCounts[opt]}</span>
+                      )}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>

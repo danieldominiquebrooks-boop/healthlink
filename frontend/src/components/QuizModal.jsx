@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { ClipboardList, Check } from "lucide-react";
+import { motion } from "framer-motion";
+import { Sparkles, Check, PartyPopper } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+  Dialog, DialogContent,
 } from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -43,6 +44,7 @@ export function QuizModal() {
 
   const questions = quiz.questions || [];
   const totalSteps = 2 + questions.length;
+  const progress = Math.round(((step + 1) / totalSteps) * 100);
 
   const dismiss = () => {
     sessionStorage.setItem("hl_quiz_dismissed", "1");
@@ -86,36 +88,47 @@ export function QuizModal() {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) dismiss(); }}>
-      <DialogContent className="sm:max-w-md" data-testid="quiz-modal">
-        <DialogHeader>
-          <div className="flex justify-center mb-2">
-            <span className="w-12 h-12 rounded-2xl bg-[#FDF7E7] flex items-center justify-center text-[#B8912B]"><ClipboardList size={24} /></span>
+      <DialogContent className="sm:max-w-md p-0 overflow-hidden border-0 rounded-3xl" data-testid="quiz-modal">
+        {/* Colorful gradient header */}
+        <div className="relative bg-gradient-to-br from-[#E89D93] via-[#EFB6A0] to-[#D4AF37] px-6 pt-7 pb-6 text-center overflow-hidden">
+          <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full bg-white/15" />
+          <div className="absolute -bottom-10 -left-6 w-24 h-24 rounded-full bg-white/10" />
+          <motion.span
+            initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: "spring", stiffness: 260, damping: 16 }}
+            className="relative inline-flex w-14 h-14 rounded-2xl bg-white/95 items-center justify-center text-[#E89D93] shadow-lg"
+          >
+            <Sparkles size={26} />
+          </motion.span>
+          <h2 className="relative mt-3 font-display text-2xl font-extrabold text-white drop-shadow-sm">{quiz.title}</h2>
+          <p className="relative mt-1 text-sm text-white/90">
+            {step === 0 ? (quiz.description || "Take our fun quiz & get your results by email!") : `Step ${step + 1} of ${totalSteps}`}
+          </p>
+          {/* progress bar */}
+          <div className="relative mt-4 h-2 rounded-full bg-white/25 overflow-hidden">
+            <motion.div className="h-full rounded-full bg-white" animate={{ width: `${progress}%` }} transition={{ duration: 0.35 }} />
           </div>
-          <DialogTitle className="font-display text-center text-xl">{quiz.title}</DialogTitle>
-          <DialogDescription className="text-center">
-            {step === 0 ? (quiz.description || "Take a quick quiz and get your results by email.") : `Step ${step + 1} of ${totalSteps}`}
-          </DialogDescription>
-        </DialogHeader>
+        </div>
 
-        <div className="space-y-4 pt-1">
+        <div className="px-6 py-5 space-y-4 bg-white">
           {step === 0 && (
             <>
               <div>
-                <Label className="mb-1.5 block text-sm">Your name</Label>
-                <Input data-testid="quiz-name-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" className="h-11" />
+                <Label className="mb-1.5 block text-sm font-semibold text-[#0B132B]">Your name</Label>
+                <Input data-testid="quiz-name-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" className="h-11 rounded-xl" />
               </div>
               <div>
-                <Label className="mb-1.5 block text-sm">Email address</Label>
-                <Input data-testid="quiz-email-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="h-11" />
+                <Label className="mb-1.5 block text-sm font-semibold text-[#0B132B]">Email address</Label>
+                <Input data-testid="quiz-email-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="h-11 rounded-xl" />
               </div>
             </>
           )}
 
           {step === 1 && (
             <div>
-              <Label className="mb-1.5 block text-sm">Your age range</Label>
+              <Label className="mb-1.5 block text-sm font-semibold text-[#0B132B]">Your age range</Label>
               <Select value={age} onValueChange={setAge}>
-                <SelectTrigger data-testid="quiz-age-select" className="h-11"><SelectValue placeholder="Select age range" /></SelectTrigger>
+                <SelectTrigger data-testid="quiz-age-select" className="h-11 rounded-xl"><SelectValue placeholder="Select age range" /></SelectTrigger>
                 <SelectContent>
                   {AGE_RANGES.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
                 </SelectContent>
@@ -125,34 +138,44 @@ export function QuizModal() {
 
           {step >= 2 && (() => {
             const q = questions[step - 2];
+            const palette = ["#E89D93", "#D4AF37", "#5AA9A3", "#7C83E8", "#E8956B", "#C77DAE"];
             return (
-              <div>
-                <p className="font-medium text-[#0F172A] mb-3">{q.text}</p>
-                <div className="space-y-2" data-testid="quiz-options">
+              <motion.div key={q.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3 }}>
+                <p className="font-display font-bold text-lg text-[#0B132B] mb-3">{q.text}</p>
+                <div className="space-y-2.5" data-testid="quiz-options">
                   {(q.options || []).map((opt, i) => {
                     const selected = answers[q.id] === opt;
+                    const c = palette[i % palette.length];
                     return (
-                      <button
+                      <motion.button
                         key={i}
                         type="button"
+                        whileTap={{ scale: 0.97 }}
                         data-testid={`quiz-option-${i}`}
                         onClick={() => setAnswers((p) => ({ ...p, [q.id]: opt }))}
-                        className={`w-full flex items-center gap-3 text-left px-4 py-3 rounded-xl border transition-colors ${selected ? "border-[#E89D93] bg-[#FDF0EE]" : "border-slate-200 hover:border-[#E89D93]/50"}`}
+                        className="w-full flex items-center gap-3 text-left px-4 py-3 rounded-2xl border-2 transition-all"
+                        style={{
+                          borderColor: selected ? c : "#EEE",
+                          background: selected ? `${c}1A` : "#fff",
+                          boxShadow: selected ? `0 4px 14px ${c}33` : "none",
+                        }}
                       >
-                        <span className={`w-5 h-5 rounded-full flex items-center justify-center border ${selected ? "bg-[#E89D93] border-[#E89D93] text-white" : "border-slate-300"}`}>
-                          {selected && <Check size={13} />}
+                        <span className="w-6 h-6 rounded-full flex items-center justify-center border-2 shrink-0 text-white"
+                          style={{ background: selected ? c : "#fff", borderColor: selected ? c : "#D8D8D8" }}>
+                          {selected && <Check size={14} />}
                         </span>
-                        <span className="text-sm text-[#334155]">{opt}</span>
-                      </button>
+                        <span className="text-sm font-medium text-[#334155]">{opt}</span>
+                      </motion.button>
                     );
                   })}
                 </div>
-              </div>
+              </motion.div>
             );
           })()}
 
-          <Button onClick={next} disabled={loading} data-testid="quiz-next-btn" className="w-full bg-[#0B132B] hover:bg-[#1C2541] text-white h-11">
-            {loading ? "Submitting..." : step < totalSteps - 1 ? "Continue" : "Submit & get results"}
+          <Button onClick={next} disabled={loading} data-testid="quiz-next-btn"
+            className="w-full h-12 rounded-xl text-white font-bold text-base bg-gradient-to-r from-[#E89D93] to-[#D4AF37] hover:opacity-95 transition-opacity shadow-lg">
+            {loading ? "Submitting..." : step < totalSteps - 1 ? "Continue" : (<span className="inline-flex items-center gap-2"><PartyPopper size={18} /> Submit &amp; get results</span>)}
           </Button>
           <div className="text-center">
             <button type="button" onClick={dismiss} data-testid="quiz-dismiss-btn" className="text-xs text-muted-foreground hover:text-[#0F172A]">No thanks</button>

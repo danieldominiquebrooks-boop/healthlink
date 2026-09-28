@@ -1213,7 +1213,7 @@ function AnalyticsManager() {
 // Quizzes: list / editor / analysis
 // -----------------------------------------------------------------------------
 function blankQuiz() {
-  return { title: "", description: "", result_message: "", popup_delay_seconds: 10, active: false, questions: [] };
+  return { title: "", description: "", result_message: "", result_tiers: [], popup_delay_seconds: 10, active: false, start_date: "", end_date: "", questions: [] };
 }
 
 function QuizzesManager() {
@@ -1304,25 +1304,38 @@ function QuizzesManager() {
 }
 
 function QuizEditor({ initial, onDone, onCancel }) {
-  const [q, setQ] = useState(initial);
+  const [q, setQ] = useState(() => ({
+    result_tiers: [], start_date: "", end_date: "",
+    ...initial,
+    questions: (initial.questions || []).map((x) => ({
+      ...x,
+      options: (x.options || []).map((o) => (typeof o === "string" ? { text: o, points: 0 } : { text: o.text || "", points: o.points || 0 })),
+    })),
+  }));
   const [saving, setSaving] = useState(false);
   const set = (k, v) => setQ((p) => ({ ...p, [k]: v }));
 
-  const addQuestion = () => setQ((p) => ({ ...p, questions: [...p.questions, { text: "", options: ["", ""] }] }));
+  const addQuestion = () => setQ((p) => ({ ...p, questions: [...p.questions, { text: "", options: [{ text: "", points: 0 }, { text: "", points: 0 }] }] }));
   const removeQuestion = (i) => setQ((p) => ({ ...p, questions: p.questions.filter((_, j) => j !== i) }));
   const setQuestion = (i, text) => setQ((p) => ({ ...p, questions: p.questions.map((x, j) => (j === i ? { ...x, text } : x)) }));
-  const addOption = (i) => setQ((p) => ({ ...p, questions: p.questions.map((x, j) => (j === i ? { ...x, options: [...x.options, ""] } : x)) }));
-  const setOption = (i, oi, v) => setQ((p) => ({ ...p, questions: p.questions.map((x, j) => (j === i ? { ...x, options: x.options.map((o, k) => (k === oi ? v : o)) } : x)) }));
-  const removeOption = (i, oi) => setQ((p) => ({ ...p, questions: p.questions.map((x, j) => (j === i ? { ...x, options: x.options.filter((_, k) => k !== oi) } : x)) }));
+  const addOption = (i) => setQ((p) => ({ ...p, questions: p.questions.map((x, j) => (j === i ? { ...x, options: [...x.options, { text: "", points: 0 }] } : x)) }));
+  const setOpt = (i, oi, k, v) => setQ((p) => ({ ...p, questions: p.questions.map((x, j) => (j === i ? { ...x, options: x.options.map((o, m) => (m === oi ? { ...o, [k]: v } : o)) } : x)) }));
+  const removeOption = (i, oi) => setQ((p) => ({ ...p, questions: p.questions.map((x, j) => (j === i ? { ...x, options: x.options.filter((_, m) => m !== oi) } : x)) }));
+  const addTier = () => setQ((p) => ({ ...p, result_tiers: [...(p.result_tiers || []), { min_points: 0, message: "" }] }));
+  const setTier = (i, k, v) => setQ((p) => ({ ...p, result_tiers: p.result_tiers.map((t, j) => (j === i ? { ...t, [k]: v } : t)) }));
+  const removeTier = (i) => setQ((p) => ({ ...p, result_tiers: p.result_tiers.filter((_, j) => j !== i) }));
 
   const save = async () => {
     if (!q.title.trim()) return toast.error("Give the quiz a title.");
     const clean = {
       ...q,
       popup_delay_seconds: Number(q.popup_delay_seconds) || 10,
+      result_tiers: (q.result_tiers || [])
+        .filter((t) => (t.message || "").trim())
+        .map((t) => ({ min_points: Number(t.min_points) || 0, message: t.message.trim() })),
       questions: q.questions
         .filter((x) => x.text.trim())
-        .map((x) => ({ ...x, options: x.options.map((o) => o.trim()).filter(Boolean) })),
+        .map((x) => ({ ...x, options: x.options.map((o) => ({ text: (o.text || "").trim(), points: Number(o.points) || 0 })).filter((o) => o.text) })),
     };
     if (clean.questions.length === 0) return toast.error("Add at least one question with options.");
     if (clean.questions.some((x) => x.options.length < 2)) return toast.error("Each question needs at least 2 options.");
@@ -1363,8 +1376,38 @@ function QuizEditor({ initial, onDone, onCancel }) {
           </div>
         </div>
         <div>
-          <Label className="mb-1.5 block text-sm">Result email message</Label>
-          <Textarea rows={3} data-testid="quiz-result-msg" value={q.result_message || ""} onChange={(e) => set("result_message", e.target.value)} placeholder="A custom message emailed to each person with their answers" />
+          <Label className="mb-1.5 block text-sm">Default result email message <span className="text-muted-foreground font-normal">(use **bold** for emphasis)</span></Label>
+          <Textarea rows={3} data-testid="quiz-result-msg" value={q.result_message || ""} onChange={(e) => set("result_message", e.target.value)} placeholder="Shown if no score tier matches. Use **bold** to emphasise words." />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label className="mb-1.5 block text-sm">Start date <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Input type="date" data-testid="quiz-start-date" value={q.start_date || ""} onChange={(e) => set("start_date", e.target.value)} />
+          </div>
+          <div>
+            <Label className="mb-1.5 block text-sm">End date <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Input type="date" data-testid="quiz-end-date" value={q.end_date || ""} onChange={(e) => set("end_date", e.target.value)} />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-[#E89D93]/15 p-5">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="font-display font-bold text-[#0F172A]">Score-based result messages</h3>
+          <Button type="button" variant="outline" size="sm" onClick={addTier} data-testid="add-tier-btn"><Plus size={14} className="mr-1" /> Add tier</Button>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">Each person receives the message of the highest tier their points reach. Use **bold** for emphasis. Falls back to the default message above.</p>
+        <div className="space-y-2">
+          {(q.result_tiers || []).map((t, i) => (
+            <div key={i} className="flex items-start gap-2" data-testid={`tier-editor-${i}`}>
+              <div className="w-24 shrink-0">
+                <Input type="number" data-testid={`tier-min-${i}`} value={t.min_points} onChange={(e) => setTier(i, "min_points", e.target.value)} placeholder="Min pts" className="h-9" />
+              </div>
+              <Textarea rows={2} data-testid={`tier-msg-${i}`} value={t.message} onChange={(e) => setTier(i, "message", e.target.value)} placeholder="Message for this score and up" className="flex-1" />
+              <button onClick={() => removeTier(i)} data-testid={`remove-tier-${i}`} className="p-2 rounded-lg hover:bg-red-50 text-red-500 mt-0.5"><Trash2 size={15} /></button>
+            </div>
+          ))}
+          {(q.result_tiers || []).length === 0 && <p className="text-sm text-muted-foreground">No tiers yet — everyone gets the default message.</p>}
         </div>
       </div>
 
@@ -1382,9 +1425,11 @@ function QuizEditor({ initial, onDone, onCancel }) {
                 <button onClick={() => removeQuestion(i)} data-testid={`remove-question-${i}`} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 size={15} /></button>
               </div>
               <div className="space-y-2 pl-8">
+                <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground"><span className="flex-1">Option</span><span className="w-16 text-center">Points</span><span className="w-7" /></div>
                 {ques.options.map((opt, oi) => (
                   <div key={oi} className="flex items-center gap-2">
-                    <Input data-testid={`option-${i}-${oi}`} value={opt} onChange={(e) => setOption(i, oi, e.target.value)} placeholder={`Option ${oi + 1}`} className="flex-1 h-9" />
+                    <Input data-testid={`option-${i}-${oi}`} value={opt.text} onChange={(e) => setOpt(i, oi, "text", e.target.value)} placeholder={`Option ${oi + 1}`} className="flex-1 h-9" />
+                    <Input type="number" data-testid={`option-points-${i}-${oi}`} value={opt.points} onChange={(e) => setOpt(i, oi, "points", e.target.value)} className="w-16 h-9 text-center" />
                     {ques.options.length > 2 && <button onClick={() => removeOption(i, oi)} className="p-1.5 rounded hover:bg-red-50 text-red-400"><X size={14} /></button>}
                   </div>
                 ))}
@@ -1419,6 +1464,16 @@ function QuizAnalysis({ quizId, onBack }) {
   }, [quizId, start, end]);
   useEffect(() => { load(); }, [load]);
 
+  const exportCsv = async () => {
+    try {
+      const res = await api.get(`/admin/quizzes/${quizId}/responses.csv`, { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url; a.download = "quiz-responses.csv"; a.click();
+      window.URL.revokeObjectURL(url);
+    } catch { toast.error("Export failed"); }
+  };
+
   const fmtTime = (iso) => { try { return new Date(iso).toLocaleString(); } catch { return iso; } };
 
   return (
@@ -1428,7 +1483,10 @@ function QuizAnalysis({ quizId, onBack }) {
           <button onClick={onBack} className="text-sm text-[#E89D93] hover:text-[#d47f74]">← Back</button>
           <h2 className="font-display text-2xl font-bold text-[#0F172A]">{data?.quiz_title || "Quiz"} analysis</h2>
         </div>
-        <DateRangeBar start={start} end={end} setStart={setStart} setEnd={setEnd} testid="quiz" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <DateRangeBar start={start} end={end} setStart={setStart} setEnd={setEnd} testid="quiz" />
+          <Button variant="outline" size="sm" onClick={exportCsv} data-testid="export-quiz-csv-btn"><Download size={14} className="mr-1" /> Export CSV</Button>
+        </div>
       </div>
 
       {loading ? <p className="text-muted-foreground py-10 text-center">Loading...</p> : !data ? (
@@ -1472,7 +1530,7 @@ function QuizAnalysis({ quizId, onBack }) {
                 <div key={i} className="px-4 py-3" data-testid={`respondent-${i}`}>
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-medium text-[#0F172A] truncate">{r.name} <span className="text-muted-foreground font-normal">· {r.email}</span></span>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">{r.age} · {fmtTime(r.created_at)}</span>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">{r.age} · {r.points || 0} pts · {fmtTime(r.created_at)}</span>
                   </div>
                   <div className="mt-1 text-xs text-[#64748B] flex flex-wrap gap-x-3 gap-y-0.5">
                     {(r.answers || []).map((a, j) => <span key={j}>{a.question}: <b className="text-[#334155]">{a.answer}</b></span>)}

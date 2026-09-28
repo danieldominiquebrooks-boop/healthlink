@@ -1392,17 +1392,28 @@ async def update_about(payload: AboutContent, admin: dict = Depends(get_current_
 # ----------------------------------------------------------------------------
 # Quizzes
 # ----------------------------------------------------------------------------
+class QuizOption(BaseModel):
+    text: str = ""
+    points: int = 0
+
+class ResultTier(BaseModel):
+    min_points: int = 0
+    message: str = ""
+
 class QuizQuestion(BaseModel):
     id: Optional[str] = None
     text: str
-    options: List[str] = Field(default_factory=list)
+    options: List[QuizOption] = Field(default_factory=list)
 
 class QuizBase(BaseModel):
     title: str
     description: Optional[str] = ""
     result_message: Optional[str] = ""
+    result_tiers: List[ResultTier] = Field(default_factory=list)
     popup_delay_seconds: int = 10
     active: bool = False
+    start_date: Optional[str] = ""
+    end_date: Optional[str] = ""
     questions: List[QuizQuestion] = Field(default_factory=list)
 
 class QuizAnswer(BaseModel):
@@ -1417,11 +1428,33 @@ class QuizSubmit(BaseModel):
     age: Optional[str] = ""
     answers: List[QuizAnswer] = Field(default_factory=list)
 
+def _opt_text(o) -> str:
+    return o if isinstance(o, str) else (o.get("text", "") if isinstance(o, dict) else "")
+
+def _opt_points(o) -> int:
+    return 0 if isinstance(o, str) else int((o.get("points") if isinstance(o, dict) else 0) or 0)
+
+def _tier_message(quiz: dict, total: int) -> str:
+    tiers = sorted(quiz.get("result_tiers") or [], key=lambda t: (t.get("min_points") or 0))
+    chosen = None
+    for t in tiers:
+        if total >= (t.get("min_points") or 0):
+            chosen = t
+    if chosen and (chosen.get("message") or "").strip():
+        return chosen["message"]
+    return quiz.get("result_message", "")
+
+def _md_bold(text: str) -> str:
+    safe = escape(text or "")
+    safe = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", safe)
+    return safe.replace("\n", "<br>")
+
 def _public_quiz(q: dict) -> dict:
     return {
         "id": q["id"], "title": q.get("title", ""), "description": q.get("description", ""),
         "popup_delay_seconds": q.get("popup_delay_seconds", 10),
-        "questions": [{"id": x.get("id"), "text": x.get("text", ""), "options": x.get("options", [])}
+        "questions": [{"id": x.get("id"), "text": x.get("text", ""),
+                       "options": [_opt_text(o) for o in x.get("options", [])]}
                       for x in q.get("questions", [])],
     }
 
@@ -1448,36 +1481,49 @@ async def _upsert_subscriber(email: str, base: str) -> str:
     })
     return token
 
-def _quiz_result_html(name: str, message: str, answers: list, unsub: str) -> str:
+def _quiz_result_html(name: str, message: str, answers: list, points: int, unsub: str) -> str:
     rows = "".join(
-        f'<tr><td style="padding:6px 12px 6px 0;color:#0F172A;font-weight:600;vertical-align:top">{escape(a.get("question") or "")}</td>'
-        f'<td style="padding:6px 0;color:#334155">{escape(a.get("answer") or "")}</td></tr>'
+        f'<tr><td style="padding:8px 12px 8px 0;color:#0F172A;font-weight:600;vertical-align:top;border-bottom:1px solid #F1E7E4">{escape(a.get("question") or "")}</td>'
+        f'<td style="padding:8px 0;color:#334155;border-bottom:1px solid #F1E7E4">{escape(a.get("answer") or "")}</td></tr>'
         for a in answers
     )
-    msg_block = f'<p style="color:#334155;font-size:15px;line-height:1.6">{escape(message)}</p>' if message else ""
-    return (f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;background:#FAF7F2">'
-            f'<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:32px">'
-            f'<h1 style="color:#0B132B;margin:0 0 8px;font-size:22px">Thanks, {escape(name or "there")}!</h1>'
+    msg_block = (f'<div style="background:#FDF7E7;border-left:4px solid #D4AF37;border-radius:10px;padding:16px 18px;margin:8px 0 4px">'
+                 f'<p style="color:#334155;font-size:16px;line-height:1.7;margin:0">{_md_bold(message)}</p></div>') if message else ""
+    return (f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,Helvetica,sans-serif;background:#FAF7F2">'
+            f'<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 30px rgba(11,19,43,0.08)">'
+            f'<div style="background:linear-gradient(135deg,#E89D93 0%,#D4AF37 100%);padding:28px 32px;text-align:center">'
+            f'<p style="color:#fff;font-size:13px;letter-spacing:2px;text-transform:uppercase;margin:0 0 6px;opacity:.9">{escape(EMAIL_FROM_NAME)}</p>'
+            f'<h1 style="color:#fff;margin:0;font-size:26px">Thanks, {escape(name or "there")}!</h1>'
+            f'<div style="display:inline-block;margin-top:12px;background:rgba(255,255,255,.9);color:#0B132B;font-weight:bold;font-size:14px;padding:6px 16px;border-radius:999px">You scored {points} point{"s" if points != 1 else ""}</div>'
+            f'</div>'
+            f'<div style="padding:28px 32px">'
             f'{msg_block}'
-            f'<h3 style="color:#0F172A;font-size:15px;margin:20px 0 8px">Your answers</h3>'
+            f'<h3 style="color:#0F172A;font-size:15px;margin:22px 0 6px">Your answers</h3>'
             f'<table style="width:100%;border-collapse:collapse;font-size:14px">{rows}</table>'
             f'<hr style="border:none;border-top:1px solid #eee;margin:24px 0">'
             f'<p style="font-size:12px;color:#94a3b8">You are receiving this because you completed a quiz and subscribed to updates from '
             f'{escape(EMAIL_FROM_NAME)}. <a href="{escape(unsub)}" style="color:#94a3b8">Unsubscribe</a>.</p>'
-            f'</div></td></tr></table>')
+            f'</div></div></td></tr></table>')
 
-async def _send_quiz_result(email, name, message, answers, token, base):
+async def _send_quiz_result(email, name, message, answers, points, token, base):
     unsub = f"{base}/api/newsletter/unsubscribe?token={token}"
     try:
         await send_email(to=email, subject=f"Your {EMAIL_FROM_NAME} quiz results",
-                         html=_quiz_result_html(name, message, answers, unsub))
+                         html=_quiz_result_html(name, message, answers, points, unsub))
     except Exception as e:
         logger.error(f"Quiz result email to {email} failed: {e}")
 
 @api_router.get("/quiz/active")
 async def active_quiz():
     q = await db.quizzes.find_one({"active": True}, {"_id": 0})
-    return _public_quiz(q) if q else None
+    if not q:
+        return None
+    today = datetime.now(timezone.utc).date().isoformat()
+    if q.get("start_date") and today < q["start_date"]:
+        return None
+    if q.get("end_date") and today > q["end_date"]:
+        return None
+    return _public_quiz(q)
 
 @api_router.post("/quiz/submit")
 async def submit_quiz(payload: QuizSubmit, request: Request, bg: BackgroundTasks):
@@ -1488,14 +1534,22 @@ async def submit_quiz(payload: QuizSubmit, request: Request, bg: BackgroundTasks
     base = public_base(request)
     token = await _upsert_subscriber(email, base)
     qmap = {x.get("id"): x.get("text", "") for x in quiz.get("questions", [])}
-    answers = [{"question_id": a.question_id, "question": qmap.get(a.question_id, ""), "answer": a.answer}
-               for a in payload.answers if a.question_id in qmap]
+    qopts = {x.get("id"): x.get("options", []) for x in quiz.get("questions", [])}
+    answers, total = [], 0
+    for a in payload.answers:
+        if a.question_id not in qmap:
+            continue
+        answers.append({"question_id": a.question_id, "question": qmap[a.question_id], "answer": a.answer})
+        for o in qopts.get(a.question_id, []):
+            if _opt_text(o) == a.answer:
+                total += _opt_points(o)
+    message = _tier_message(quiz, total)
     await db.quiz_responses.insert_one({
         "id": new_id(), "quiz_id": payload.quiz_id, "quiz_title": quiz.get("title", ""),
         "name": payload.name.strip(), "email": email, "age": (payload.age or "").strip(),
-        "answers": answers, "created_at": now_iso(),
+        "answers": answers, "points": total, "created_at": now_iso(),
     })
-    bg.add_task(_send_quiz_result, email, payload.name.strip(), quiz.get("result_message", ""), answers, token, base)
+    bg.add_task(_send_quiz_result, email, payload.name.strip(), message, answers, total, token, base)
     return {"ok": True, "message": "Thanks for completing the quiz! Check your inbox for your results."}
 
 @api_router.get("/admin/quizzes")
@@ -1546,7 +1600,8 @@ async def quiz_analysis(qid: str, start: Optional[str] = None, end: Optional[str
     responses = await db.quiz_responses.find(rq, {"_id": 0}).sort("created_at", -1).to_list(5000)
     questions = []
     for ques in quiz.get("questions", []):
-        counts = {opt: 0 for opt in ques.get("options", [])}
+        opts = [_opt_text(o) for o in ques.get("options", [])]
+        counts = {opt: 0 for opt in opts}
         for r in responses:
             for a in r.get("answers", []):
                 if a.get("question_id") == ques.get("id") or a.get("question") == ques.get("text"):
@@ -1562,8 +1617,38 @@ async def quiz_analysis(qid: str, start: Optional[str] = None, end: Optional[str
         "questions": questions,
         "ages": ages,
         "responses": [{"name": r.get("name"), "email": r.get("email"), "age": r.get("age"),
+                       "points": r.get("points", 0),
                        "answers": r.get("answers", []), "created_at": r.get("created_at")} for r in responses],
     }
+
+@api_router.get("/admin/quizzes/{qid}/responses.csv")
+async def export_quiz_csv(qid: str, admin: dict = Depends(get_current_admin)):
+    quiz = await db.quizzes.find_one({"id": qid}, {"_id": 0})
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    responses = await db.quiz_responses.find({"quiz_id": qid}, {"_id": 0}).sort("created_at", 1).to_list(20000)
+    questions = quiz.get("questions", [])
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["Date", "Name", "Email", "Age", "Points"] + [q.get("text", "") for q in questions])
+    for r in responses:
+        amap = {a.get("question_id"): a.get("answer", "") for a in r.get("answers", [])}
+        row = [r.get("created_at", ""), r.get("name", ""), r.get("email", ""), r.get("age", ""), r.get("points", "")]
+        row += [amap.get(q.get("id"), "") for q in questions]
+        w.writerow(row)
+    fname = re.sub(r"[^a-z0-9]+", "-", (quiz.get("title") or "quiz").lower()).strip("-") or "quiz"
+    return Response(content=buf.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="{fname}-responses.csv"'})
+
+@api_router.get("/regions/counts")
+async def region_counts(country: str):
+    pipeline = [{"$match": {"active": True, "country": country}},
+                {"$group": {"_id": "$region", "count": {"$sum": 1}}}]
+    out = {}
+    async for row in db.providers.aggregate(pipeline):
+        if row.get("_id"):
+            out[row["_id"]] = row["count"]
+    return out
 
 app.include_router(api_router)
 
