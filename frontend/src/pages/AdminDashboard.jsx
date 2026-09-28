@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, Activity, Tags, BookOpen, Calendar, MessageSquare, Settings as SettingsIcon,
   Plus, Pencil, Trash2, LogOut, Check, X, Eye, ExternalLink, ShieldCheck,
-  Upload, Download, Image as ImageIcon, Star, BarChart3, Mail, Megaphone,
+  Upload, Download, Image as ImageIcon, Star, BarChart3, Mail, Megaphone, ClipboardList,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -114,6 +114,7 @@ const TABS = [
   { key: "events", label: "Events", icon: Calendar },
   { key: "reviews", label: "Reviews", icon: MessageSquare },
   { key: "subscribers", label: "Subscribers", icon: Mail },
+  { key: "quizzes", label: "Quizzes", icon: ClipboardList },
   { key: "analytics", label: "Analytics", icon: BarChart3 },
   { key: "settings", label: "Settings", icon: SettingsIcon },
 ];
@@ -167,6 +168,7 @@ export default function AdminDashboard() {
           {tab === "reviews" ? <ReviewsManager />
             : tab === "settings" ? <SettingsManager />
             : tab === "subscribers" ? <SubscribersManager />
+            : tab === "quizzes" ? <QuizzesManager />
             : tab === "analytics" ? <AnalyticsManager />
             : <EntityManager key={tab} entity={tab} />}
         </div>
@@ -928,6 +930,97 @@ function SettingsManager() {
           </Button>
         </div>
       </div>
+
+      <AboutEditor />
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// About page editor
+// -----------------------------------------------------------------------------
+function AboutEditor() {
+  const [a, setA] = useState({ heading: "", story: "", image_url: "", team: [] });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.get("/about").then((r) => setA({ heading: "", story: "", image_url: "", team: [], ...(r.data || {}) }))
+      .catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  const setField = (k, v) => setA((p) => ({ ...p, [k]: v }));
+  const setMember = (i, k, v) => setA((p) => ({ ...p, team: p.team.map((m, j) => (j === i ? { ...m, [k]: v } : m)) }));
+  const addMember = () => setA((p) => ({ ...p, team: [...p.team, { name: "", role: "", photo: "", bio: "" }] }));
+  const removeMember = (i) => setA((p) => ({ ...p, team: p.team.filter((_, j) => j !== i) }));
+
+  const save = async () => {
+    setSaving(true);
+    try { await api.put("/admin/about", a); toast.success("About page saved"); }
+    catch (err) { toast.error(formatApiError(err.response?.data?.detail)); }
+    finally { setSaving(false); }
+  };
+
+  if (loading) return null;
+
+  return (
+    <div className="bg-white rounded-2xl border border-[#E89D93]/15 p-5" data-testid="about-editor">
+      <h3 className="font-display font-bold text-[#0F172A] mb-4">About page</h3>
+      <div className="space-y-4">
+        <div>
+          <Label className="mb-1.5 block text-sm">Heading</Label>
+          <Input data-testid="about-heading-input" value={a.heading || ""} onChange={(e) => setField("heading", e.target.value)} placeholder="About My Healthcare Link" />
+        </div>
+        <div>
+          <Label className="mb-1.5 block text-sm">Hero image</Label>
+          <ImageField value={a.image_url} onChange={(v) => setField("image_url", v)} testid="about-image" />
+        </div>
+        <div>
+          <Label className="mb-1.5 block text-sm">Our story</Label>
+          <RichTextEditor value={a.story || ""} onChange={(v) => setField("story", v)} testid="about-story-editor" />
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <Label className="text-sm">Team members</Label>
+            <Button type="button" variant="outline" size="sm" onClick={addMember} data-testid="add-team-member-btn"><Plus size={14} className="mr-1" /> Add member</Button>
+          </div>
+          <div className="space-y-3">
+            {(a.team || []).map((m, i) => (
+              <div key={i} className="rounded-xl border border-[#E89D93]/20 p-3" data-testid={`team-member-editor-${i}`}>
+                <div className="flex items-start gap-3">
+                  <ImageField value={m.photo} onChange={(v) => setMember(i, "photo", v)} testid={`team-photo-${i}`} />
+                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <Input data-testid={`team-name-${i}`} value={m.name || ""} onChange={(e) => setMember(i, "name", e.target.value)} placeholder="Name" />
+                    <Input data-testid={`team-role-${i}`} value={m.role || ""} onChange={(e) => setMember(i, "role", e.target.value)} placeholder="Role (e.g. Founder)" />
+                    <Textarea className="sm:col-span-2" rows={2} data-testid={`team-bio-${i}`} value={m.bio || ""} onChange={(e) => setMember(i, "bio", e.target.value)} placeholder="Short bio" />
+                  </div>
+                  <button onClick={() => removeMember(i)} data-testid={`remove-team-member-${i}`} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 size={16} /></button>
+                </div>
+              </div>
+            ))}
+            {(a.team || []).length === 0 && <p className="text-sm text-muted-foreground">No team members yet.</p>}
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <Button onClick={save} disabled={saving} data-testid="save-about-btn" className="bg-[#0B132B] hover:bg-[#1C2541] text-white">
+            {saving ? "Saving..." : "Save about page"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Reusable date-range filter bar
+function DateRangeBar({ start, end, setStart, setEnd, testid }) {
+  return (
+    <div className="flex items-center gap-2 flex-wrap" data-testid={`${testid}-daterange`}>
+      <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} data-testid={`${testid}-start`} className="w-40 h-9" />
+      <span className="text-muted-foreground text-sm">to</span>
+      <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} data-testid={`${testid}-end`} className="w-40 h-9" />
+      {(start || end) && (
+        <button onClick={() => { setStart(""); setEnd(""); }} data-testid={`${testid}-clear`} className="text-sm text-[#E89D93] hover:text-[#d47f74] px-1">Clear</button>
+      )}
     </div>
   );
 }
@@ -1029,21 +1122,34 @@ function AnalyticsManager() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState(null);
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
 
-  useEffect(() => {
-    api.get("/admin/analytics").then((r) => setData(r.data)).catch(() => setData({ sessions: [], total_sessions: 0, total_pageviews: 0 })).finally(() => setLoading(false));
-  }, []);
+  const load = useCallback(() => {
+    setLoading(true);
+    const params = {};
+    if (start) params.start = start;
+    if (end) params.end = end;
+    api.get("/admin/analytics", { params })
+      .then((r) => setData(r.data))
+      .catch(() => setData({ sessions: [], total_sessions: 0, total_pageviews: 0 }))
+      .finally(() => setLoading(false));
+  }, [start, end]);
+  useEffect(() => { load(); }, [load]);
 
   const fmtDur = (s) => (s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s || 0}s`);
   const fmtTime = (iso) => { try { return new Date(iso).toLocaleString(); } catch { return iso; } };
-
-  if (loading) return <p className="text-muted-foreground py-10 text-center">Loading...</p>;
 
   const sessions = data?.sessions || [];
 
   return (
     <div data-testid="analytics-manager">
-      <h2 className="font-display text-2xl font-bold text-[#0F172A] mb-5">Visitor Analytics</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <h2 className="font-display text-2xl font-bold text-[#0F172A]">Visitor Analytics</h2>
+        <DateRangeBar start={start} end={end} setStart={setStart} setEnd={setEnd} testid="analytics" />
+      </div>
+      {loading ? <p className="text-muted-foreground py-10 text-center">Loading...</p> : (
+      <>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
         {[
           { l: "Sessions", v: data?.total_sessions || 0 },
@@ -1094,6 +1200,287 @@ function AnalyticsManager() {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+      </>
+      )}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Quizzes: list / editor / analysis
+// -----------------------------------------------------------------------------
+function blankQuiz() {
+  return { title: "", description: "", result_message: "", popup_delay_seconds: 10, active: false, questions: [] };
+}
+
+function QuizzesManager() {
+  const [quizzes, setQuizzes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState("list"); // list | edit | analysis
+  const [editing, setEditing] = useState(null);
+  const [analysisId, setAnalysisId] = useState(null);
+  const [deleteId, setDeleteId] = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    api.get("/admin/quizzes").then((r) => setQuizzes(r.data)).catch(() => setQuizzes([])).finally(() => setLoading(false));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const activate = async (q) => {
+    try { await api.put(`/admin/quizzes/${q.id}`, { ...q, active: !q.active }); load(); }
+    catch (err) { toast.error(formatApiError(err.response?.data?.detail)); }
+  };
+  const remove = async () => {
+    try { await api.delete(`/admin/quizzes/${deleteId}`); toast.success("Quiz deleted"); setDeleteId(null); load(); }
+    catch { toast.error("Failed to delete"); }
+  };
+
+  if (view === "edit") {
+    return <QuizEditor initial={editing} onDone={() => { setView("list"); load(); }} onCancel={() => setView("list")} />;
+  }
+  if (view === "analysis") {
+    return <QuizAnalysis quizId={analysisId} onBack={() => setView("list")} />;
+  }
+
+  return (
+    <div data-testid="quizzes-manager">
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <div>
+          <h2 className="font-display text-2xl font-bold text-[#0F172A]">Quizzes</h2>
+          <p className="text-sm text-muted-foreground">Only one quiz can be active at a time.</p>
+        </div>
+        <Button onClick={() => { setEditing(blankQuiz()); setView("edit"); }} data-testid="add-quiz-btn" className="bg-[#0B132B] hover:bg-[#1C2541] text-white"><Plus size={16} className="mr-1.5" /> New quiz</Button>
+      </div>
+
+      {loading ? (
+        <p className="text-muted-foreground py-10 text-center">Loading...</p>
+      ) : quizzes.length === 0 ? (
+        <div className="rounded-2xl border-2 border-dashed border-[#E89D93]/25 py-16 text-center">
+          <ClipboardList size={28} className="mx-auto text-[#E89D93]/60" />
+          <p className="mt-3 text-muted-foreground">No quizzes yet. Create one to start collecting responses.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-[#E89D93]/15 divide-y divide-slate-100">
+          {quizzes.map((q, i) => (
+            <div key={q.id} data-testid={`quiz-row-${i}`} className="flex items-center gap-4 px-4 py-3 hover:bg-[#FAF7F2]">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-[#0F172A] truncate">{q.title}</span>
+                  {q.active && <span className="text-[10px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">Active</span>}
+                </div>
+                <p className="text-xs text-muted-foreground">{(q.questions || []).length} questions · {q.response_count || 0} responses · popup after {q.popup_delay_seconds}s</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                  <Switch data-testid={`quiz-active-${i}`} checked={!!q.active} onCheckedChange={() => activate(q)} /> Active
+                </label>
+                <button onClick={() => { setAnalysisId(q.id); setView("analysis"); }} data-testid={`quiz-analyze-${i}`} title="Analyze" className="p-2 rounded-lg hover:bg-[#FDF7E7] text-[#B8912B]"><BarChart3 size={16} /></button>
+                <button onClick={() => { setEditing(q); setView("edit"); }} data-testid={`quiz-edit-${i}`} className="p-2 rounded-lg hover:bg-slate-100 text-[#0F172A]"><Pencil size={16} /></button>
+                <button onClick={() => setDeleteId(q.id)} data-testid={`quiz-delete-${i}`} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 size={16} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this quiz?</AlertDialogTitle>
+            <AlertDialogDescription>The quiz is removed. Collected responses stay in the database for analysis.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={remove} className="bg-red-500 hover:bg-red-600">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function QuizEditor({ initial, onDone, onCancel }) {
+  const [q, setQ] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const set = (k, v) => setQ((p) => ({ ...p, [k]: v }));
+
+  const addQuestion = () => setQ((p) => ({ ...p, questions: [...p.questions, { text: "", options: ["", ""] }] }));
+  const removeQuestion = (i) => setQ((p) => ({ ...p, questions: p.questions.filter((_, j) => j !== i) }));
+  const setQuestion = (i, text) => setQ((p) => ({ ...p, questions: p.questions.map((x, j) => (j === i ? { ...x, text } : x)) }));
+  const addOption = (i) => setQ((p) => ({ ...p, questions: p.questions.map((x, j) => (j === i ? { ...x, options: [...x.options, ""] } : x)) }));
+  const setOption = (i, oi, v) => setQ((p) => ({ ...p, questions: p.questions.map((x, j) => (j === i ? { ...x, options: x.options.map((o, k) => (k === oi ? v : o)) } : x)) }));
+  const removeOption = (i, oi) => setQ((p) => ({ ...p, questions: p.questions.map((x, j) => (j === i ? { ...x, options: x.options.filter((_, k) => k !== oi) } : x)) }));
+
+  const save = async () => {
+    if (!q.title.trim()) return toast.error("Give the quiz a title.");
+    const clean = {
+      ...q,
+      popup_delay_seconds: Number(q.popup_delay_seconds) || 10,
+      questions: q.questions
+        .filter((x) => x.text.trim())
+        .map((x) => ({ ...x, options: x.options.map((o) => o.trim()).filter(Boolean) })),
+    };
+    if (clean.questions.length === 0) return toast.error("Add at least one question with options.");
+    if (clean.questions.some((x) => x.options.length < 2)) return toast.error("Each question needs at least 2 options.");
+    setSaving(true);
+    try {
+      if (q.id) await api.put(`/admin/quizzes/${q.id}`, clean);
+      else await api.post("/admin/quizzes", clean);
+      toast.success("Quiz saved");
+      onDone();
+    } catch (err) { toast.error(formatApiError(err.response?.data?.detail)); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div data-testid="quiz-editor" className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display text-2xl font-bold text-[#0F172A]">{q.id ? "Edit quiz" : "New quiz"}</h2>
+        <button onClick={onCancel} className="text-sm text-muted-foreground hover:text-[#0F172A]">Cancel</button>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-[#E89D93]/15 p-5 space-y-4">
+        <div>
+          <Label className="mb-1.5 block text-sm">Title</Label>
+          <Input data-testid="quiz-title-input" value={q.title} onChange={(e) => set("title", e.target.value)} placeholder="Health Check Quiz" />
+        </div>
+        <div>
+          <Label className="mb-1.5 block text-sm">Intro description</Label>
+          <Textarea rows={2} data-testid="quiz-desc-input" value={q.description || ""} onChange={(e) => set("description", e.target.value)} placeholder="A short intro shown before the quiz starts" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label className="mb-1.5 block text-sm">Popup delay (seconds on page)</Label>
+            <Input type="number" min="0" data-testid="quiz-delay-input" value={q.popup_delay_seconds} onChange={(e) => set("popup_delay_seconds", e.target.value)} />
+          </div>
+          <div className="flex items-center justify-between rounded-lg bg-[#FAF7F2] px-3 py-2.5">
+            <Label className="text-sm cursor-pointer">Active (only one at a time)</Label>
+            <Switch data-testid="quiz-active-switch" checked={!!q.active} onCheckedChange={(v) => set("active", v)} />
+          </div>
+        </div>
+        <div>
+          <Label className="mb-1.5 block text-sm">Result email message</Label>
+          <Textarea rows={3} data-testid="quiz-result-msg" value={q.result_message || ""} onChange={(e) => set("result_message", e.target.value)} placeholder="A custom message emailed to each person with their answers" />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-[#E89D93]/15 p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-display font-bold text-[#0F172A]">Questions</h3>
+          <Button type="button" variant="outline" size="sm" onClick={addQuestion} data-testid="add-question-btn"><Plus size={14} className="mr-1" /> Add question</Button>
+        </div>
+        <div className="space-y-4">
+          {q.questions.map((ques, i) => (
+            <div key={i} className="rounded-xl border border-[#E89D93]/20 p-4" data-testid={`question-editor-${i}`}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-sm font-semibold text-[#B8912B]">Q{i + 1}</span>
+                <Input data-testid={`question-text-${i}`} value={ques.text} onChange={(e) => setQuestion(i, e.target.value)} placeholder="Question text" className="flex-1" />
+                <button onClick={() => removeQuestion(i)} data-testid={`remove-question-${i}`} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 size={15} /></button>
+              </div>
+              <div className="space-y-2 pl-8">
+                {ques.options.map((opt, oi) => (
+                  <div key={oi} className="flex items-center gap-2">
+                    <Input data-testid={`option-${i}-${oi}`} value={opt} onChange={(e) => setOption(i, oi, e.target.value)} placeholder={`Option ${oi + 1}`} className="flex-1 h-9" />
+                    {ques.options.length > 2 && <button onClick={() => removeOption(i, oi)} className="p-1.5 rounded hover:bg-red-50 text-red-400"><X size={14} /></button>}
+                  </div>
+                ))}
+                <button onClick={() => addOption(i)} data-testid={`add-option-${i}`} className="text-xs text-[#E89D93] hover:text-[#d47f74]">+ Add option</button>
+              </div>
+            </div>
+          ))}
+          {q.questions.length === 0 && <p className="text-sm text-muted-foreground">No questions yet.</p>}
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button onClick={save} disabled={saving} data-testid="save-quiz-btn" className="bg-[#0B132B] hover:bg-[#1C2541] text-white">{saving ? "Saving..." : "Save quiz"}</Button>
+      </div>
+    </div>
+  );
+}
+
+function QuizAnalysis({ quizId, onBack }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    const params = {};
+    if (start) params.start = start;
+    if (end) params.end = end;
+    api.get(`/admin/quizzes/${quizId}/analysis`, { params }).then((r) => setData(r.data)).catch(() => setData(null)).finally(() => setLoading(false));
+  }, [quizId, start, end]);
+  useEffect(() => { load(); }, [load]);
+
+  const fmtTime = (iso) => { try { return new Date(iso).toLocaleString(); } catch { return iso; } };
+
+  return (
+    <div data-testid="quiz-analysis">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
+        <div className="flex items-center gap-2">
+          <button onClick={onBack} className="text-sm text-[#E89D93] hover:text-[#d47f74]">← Back</button>
+          <h2 className="font-display text-2xl font-bold text-[#0F172A]">{data?.quiz_title || "Quiz"} analysis</h2>
+        </div>
+        <DateRangeBar start={start} end={end} setStart={setStart} setEnd={setEnd} testid="quiz" />
+      </div>
+
+      {loading ? <p className="text-muted-foreground py-10 text-center">Loading...</p> : !data ? (
+        <p className="text-muted-foreground py-10 text-center">No data.</p>
+      ) : (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="bg-white rounded-2xl border border-[#E89D93]/15 p-5">
+              <div className="font-display text-3xl font-bold text-[#0B132B]" data-testid="quiz-total-responses">{data.total}</div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground mt-1">Responses</div>
+            </div>
+            {Object.entries(data.ages || {}).slice(0, 2).map(([age, n]) => (
+              <div key={age} className="bg-white rounded-2xl border border-[#E89D93]/15 p-5">
+                <div className="font-display text-3xl font-bold text-[#0B132B]">{n}</div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground mt-1">Age {age}</div>
+              </div>
+            ))}
+          </div>
+
+          {(data.questions || []).map((ques, i) => {
+            const total = Object.values(ques.counts).reduce((a, b) => a + b, 0) || 1;
+            return (
+              <div key={i} className="bg-white rounded-2xl border border-[#E89D93]/15 p-5" data-testid={`analysis-question-${i}`}>
+                <p className="font-medium text-[#0F172A] mb-3">{ques.text}</p>
+                <div className="space-y-2">
+                  {Object.entries(ques.counts).map(([opt, n]) => (
+                    <div key={opt}>
+                      <div className="flex items-center justify-between text-sm mb-1"><span className="text-[#334155]">{opt}</span><span className="text-muted-foreground">{n} ({Math.round((n / total) * 100)}%)</span></div>
+                      <div className="h-2 rounded-full bg-[#FDF0EE] overflow-hidden"><div className="h-full bg-[#E89D93]" style={{ width: `${(n / total) * 100}%` }} /></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="bg-white rounded-2xl border border-[#E89D93]/15 overflow-hidden">
+            <div className="px-4 py-2.5 bg-[#FAF7F2] text-xs font-semibold uppercase tracking-wider text-muted-foreground">Respondents ({data.responses.length})</div>
+            <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
+              {data.responses.map((r, i) => (
+                <div key={i} className="px-4 py-3" data-testid={`respondent-${i}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium text-[#0F172A] truncate">{r.name} <span className="text-muted-foreground font-normal">· {r.email}</span></span>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">{r.age} · {fmtTime(r.created_at)}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-[#64748B] flex flex-wrap gap-x-3 gap-y-0.5">
+                    {(r.answers || []).map((a, j) => <span key={j}>{a.question}: <b className="text-[#334155]">{a.answer}</b></span>)}
+                  </div>
+                </div>
+              ))}
+              {data.responses.length === 0 && <p className="px-4 py-8 text-center text-sm text-muted-foreground">No responses in this range.</p>}
+            </div>
           </div>
         </div>
       )}

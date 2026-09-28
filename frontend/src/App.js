@@ -19,6 +19,7 @@ import Events from "@/pages/Events";
 import EventDetail from "@/pages/EventDetail";
 import Reviews from "@/pages/Reviews";
 import Saved from "@/pages/Saved";
+import About from "@/pages/About";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
 
@@ -47,6 +48,7 @@ function App() {
                 <Route path="/events" element={<Events />} />
                 <Route path="/events/:id" element={<EventDetail />} />
                 <Route path="/reviews" element={<Reviews />} />
+                <Route path="/about" element={<About />} />
                 <Route path="/saved" element={<Saved />} />
                 <Route path="/admin" element={<AdminLogin />} />
                 <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />

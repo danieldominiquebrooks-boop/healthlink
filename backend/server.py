@@ -1136,6 +1136,7 @@ async def startup():
     await db.subscribers.create_index("email", unique=True)
     await db.visits.create_index("session_id")
     await db.visits.create_index("ts")
+    await db.quiz_responses.create_index("quiz_id")
     try:
         await db.auth_challenges.create_index("expires_at", expireAfterSeconds=0)
     except Exception:
@@ -1202,8 +1203,13 @@ async def track_duration(payload: DurationInput):
     return {"ok": True}
 
 @api_router.get("/admin/analytics")
-async def analytics(admin: dict = Depends(get_current_admin)):
-    visits = await db.visits.find({}, {"_id": 0}).sort("ts", -1).limit(3000).to_list(3000)
+async def analytics(start: Optional[str] = None, end: Optional[str] = None, admin: dict = Depends(get_current_admin)):
+    vq = {}
+    if start:
+        vq.setdefault("ts", {})["$gte"] = start
+    if end:
+        vq.setdefault("ts", {})["$lte"] = end + "T23:59:59.999999"
+    visits = await db.visits.find(vq, {"_id": 0}).sort("ts", -1).limit(3000).to_list(3000)
     sessions = {}
     for v in visits:
         s = sessions.get(v["session_id"])
@@ -1354,6 +1360,210 @@ async def newsletter_unsubscribe(token: str):
             f'<h1 style="color:#0B132B">My Healthcare Link</h1>'
             f'<p style="color:#334155;font-size:16px">{escape(msg)}</p></div></body></html>')
     return HTMLResponse(content=html)
+
+# ----------------------------------------------------------------------------
+# About page
+# ----------------------------------------------------------------------------
+class TeamMember(BaseModel):
+    name: str = ""
+    role: Optional[str] = ""
+    photo: Optional[str] = ""
+    bio: Optional[str] = ""
+
+class AboutContent(BaseModel):
+    heading: Optional[str] = ""
+    story: Optional[str] = ""
+    image_url: Optional[str] = ""
+    team: List[TeamMember] = Field(default_factory=list)
+
+@api_router.get("/about")
+async def get_about():
+    doc = await db.settings.find_one({"_id": "about"})
+    if doc:
+        doc.pop("_id", None)
+    return doc or {}
+
+@api_router.put("/admin/about")
+async def update_about(payload: AboutContent, admin: dict = Depends(get_current_admin)):
+    data = payload.model_dump()
+    await db.settings.update_one({"_id": "about"}, {"$set": data}, upsert=True)
+    return data
+
+# ----------------------------------------------------------------------------
+# Quizzes
+# ----------------------------------------------------------------------------
+class QuizQuestion(BaseModel):
+    id: Optional[str] = None
+    text: str
+    options: List[str] = Field(default_factory=list)
+
+class QuizBase(BaseModel):
+    title: str
+    description: Optional[str] = ""
+    result_message: Optional[str] = ""
+    popup_delay_seconds: int = 10
+    active: bool = False
+    questions: List[QuizQuestion] = Field(default_factory=list)
+
+class QuizAnswer(BaseModel):
+    question_id: Optional[str] = None
+    question: Optional[str] = ""
+    answer: str = ""
+
+class QuizSubmit(BaseModel):
+    quiz_id: str
+    name: str
+    email: EmailStr
+    age: Optional[str] = ""
+    answers: List[QuizAnswer] = Field(default_factory=list)
+
+def _public_quiz(q: dict) -> dict:
+    return {
+        "id": q["id"], "title": q.get("title", ""), "description": q.get("description", ""),
+        "popup_delay_seconds": q.get("popup_delay_seconds", 10),
+        "questions": [{"id": x.get("id"), "text": x.get("text", ""), "options": x.get("options", [])}
+                      for x in q.get("questions", [])],
+    }
+
+def _assign_question_ids(questions) -> List[dict]:
+    out = []
+    for x in questions:
+        d = x.model_dump() if hasattr(x, "model_dump") else dict(x)
+        if not d.get("id"):
+            d["id"] = new_id()
+        out.append(d)
+    return out
+
+async def _upsert_subscriber(email: str, base: str) -> str:
+    email = email.lower().strip()
+    existing = await db.subscribers.find_one({"email": email})
+    if existing:
+        if not existing.get("active"):
+            await db.subscribers.update_one({"email": email}, {"$set": {"active": True}})
+        return existing.get("unsubscribe_token", "")
+    token = secrets.token_urlsafe(24)
+    await db.subscribers.insert_one({
+        "id": new_id(), "email": email, "active": True,
+        "unsubscribe_token": token, "created_at": now_iso(),
+    })
+    return token
+
+def _quiz_result_html(name: str, message: str, answers: list, unsub: str) -> str:
+    rows = "".join(
+        f'<tr><td style="padding:6px 12px 6px 0;color:#0F172A;font-weight:600;vertical-align:top">{escape(a.get("question") or "")}</td>'
+        f'<td style="padding:6px 0;color:#334155">{escape(a.get("answer") or "")}</td></tr>'
+        for a in answers
+    )
+    msg_block = f'<p style="color:#334155;font-size:15px;line-height:1.6">{escape(message)}</p>' if message else ""
+    return (f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;background:#FAF7F2">'
+            f'<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:32px">'
+            f'<h1 style="color:#0B132B;margin:0 0 8px;font-size:22px">Thanks, {escape(name or "there")}!</h1>'
+            f'{msg_block}'
+            f'<h3 style="color:#0F172A;font-size:15px;margin:20px 0 8px">Your answers</h3>'
+            f'<table style="width:100%;border-collapse:collapse;font-size:14px">{rows}</table>'
+            f'<hr style="border:none;border-top:1px solid #eee;margin:24px 0">'
+            f'<p style="font-size:12px;color:#94a3b8">You are receiving this because you completed a quiz and subscribed to updates from '
+            f'{escape(EMAIL_FROM_NAME)}. <a href="{escape(unsub)}" style="color:#94a3b8">Unsubscribe</a>.</p>'
+            f'</div></td></tr></table>')
+
+async def _send_quiz_result(email, name, message, answers, token, base):
+    unsub = f"{base}/api/newsletter/unsubscribe?token={token}"
+    try:
+        await send_email(to=email, subject=f"Your {EMAIL_FROM_NAME} quiz results",
+                         html=_quiz_result_html(name, message, answers, unsub))
+    except Exception as e:
+        logger.error(f"Quiz result email to {email} failed: {e}")
+
+@api_router.get("/quiz/active")
+async def active_quiz():
+    q = await db.quizzes.find_one({"active": True}, {"_id": 0})
+    return _public_quiz(q) if q else None
+
+@api_router.post("/quiz/submit")
+async def submit_quiz(payload: QuizSubmit, request: Request, bg: BackgroundTasks):
+    quiz = await db.quizzes.find_one({"id": payload.quiz_id}, {"_id": 0})
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    email = payload.email.lower().strip()
+    base = public_base(request)
+    token = await _upsert_subscriber(email, base)
+    qmap = {x.get("id"): x.get("text", "") for x in quiz.get("questions", [])}
+    answers = [{"question_id": a.question_id, "question": a.question or qmap.get(a.question_id, ""), "answer": a.answer}
+               for a in payload.answers]
+    await db.quiz_responses.insert_one({
+        "id": new_id(), "quiz_id": payload.quiz_id, "quiz_title": quiz.get("title", ""),
+        "name": payload.name.strip(), "email": email, "age": (payload.age or "").strip(),
+        "answers": answers, "created_at": now_iso(),
+    })
+    bg.add_task(_send_quiz_result, email, payload.name.strip(), quiz.get("result_message", ""), answers, token, base)
+    return {"ok": True, "message": "Thanks for completing the quiz! Check your inbox for your results."}
+
+@api_router.get("/admin/quizzes")
+async def list_quizzes(admin: dict = Depends(get_current_admin)):
+    quizzes = await db.quizzes.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    for q in quizzes:
+        q["response_count"] = await db.quiz_responses.count_documents({"quiz_id": q["id"]})
+    return quizzes
+
+@api_router.post("/admin/quizzes")
+async def create_quiz(payload: QuizBase, admin: dict = Depends(get_current_admin)):
+    doc = payload.model_dump()
+    doc["id"] = new_id()
+    doc["created_at"] = now_iso()
+    doc["questions"] = _assign_question_ids(payload.questions)
+    if doc.get("active"):
+        await db.quizzes.update_many({}, {"$set": {"active": False}})
+    await db.quizzes.insert_one(dict(doc))
+    doc.pop("_id", None)
+    return doc
+
+@api_router.put("/admin/quizzes/{qid}")
+async def update_quiz(qid: str, payload: QuizBase, admin: dict = Depends(get_current_admin)):
+    doc = payload.model_dump()
+    doc["questions"] = _assign_question_ids(payload.questions)
+    if doc.get("active"):
+        await db.quizzes.update_many({"id": {"$ne": qid}}, {"$set": {"active": False}})
+    res = await db.quizzes.update_one({"id": qid}, {"$set": doc})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    return await db.quizzes.find_one({"id": qid}, {"_id": 0})
+
+@api_router.delete("/admin/quizzes/{qid}")
+async def delete_quiz(qid: str, admin: dict = Depends(get_current_admin)):
+    await db.quizzes.delete_one({"id": qid})
+    return {"ok": True}
+
+@api_router.get("/admin/quizzes/{qid}/analysis")
+async def quiz_analysis(qid: str, start: Optional[str] = None, end: Optional[str] = None, admin: dict = Depends(get_current_admin)):
+    quiz = await db.quizzes.find_one({"id": qid}, {"_id": 0})
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    rq = {"quiz_id": qid}
+    if start:
+        rq.setdefault("created_at", {})["$gte"] = start
+    if end:
+        rq.setdefault("created_at", {})["$lte"] = end + "T23:59:59.999999"
+    responses = await db.quiz_responses.find(rq, {"_id": 0}).sort("created_at", -1).to_list(5000)
+    questions = []
+    for ques in quiz.get("questions", []):
+        counts = {opt: 0 for opt in ques.get("options", [])}
+        for r in responses:
+            for a in r.get("answers", []):
+                if a.get("question_id") == ques.get("id") or a.get("question") == ques.get("text"):
+                    counts[a.get("answer")] = counts.get(a.get("answer"), 0) + 1
+        questions.append({"id": ques.get("id"), "text": ques.get("text"), "counts": counts})
+    ages = {}
+    for r in responses:
+        a = (r.get("age") or "Unknown").strip() or "Unknown"
+        ages[a] = ages.get(a, 0) + 1
+    return {
+        "quiz_title": quiz.get("title", ""),
+        "total": len(responses),
+        "questions": questions,
+        "ages": ages,
+        "responses": [{"name": r.get("name"), "email": r.get("email"), "age": r.get("age"),
+                       "answers": r.get("answers", []), "created_at": r.get("created_at")} for r in responses],
+    }
 
 app.include_router(api_router)
 

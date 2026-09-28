@@ -16,8 +16,16 @@ export function NewsletterModal({ context = "updates" }) {
 
   useEffect(() => {
     if (localStorage.getItem("hl_subscribed")) return;
-    const t = setTimeout(() => setOpen(true), 1400);
-    return () => clearTimeout(t);
+    let timer;
+    // Quiz popup takes priority: if an active quiz exists and isn't completed, skip the newsletter popup.
+    api.get("/quiz/active").then((r) => {
+      const q = r.data;
+      if (q && q.id && !localStorage.getItem(`hl_quiz_done_${q.id}`) && !sessionStorage.getItem("hl_quiz_dismissed")) return;
+      timer = setTimeout(() => setOpen(true), 1400);
+    }).catch(() => {
+      timer = setTimeout(() => setOpen(true), 1400);
+    });
+    return () => timer && clearTimeout(timer);
   }, []);
 
   const submit = async (e) => {

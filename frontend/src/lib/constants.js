@@ -26,4 +26,5 @@ export const NAV_LINKS = [
   { to: "/blog", label: "Health Blog" },
   { to: "/events", label: "Events" },
   { to: "/reviews", label: "Reviews" },
+  { to: "/about", label: "About" },
 ];
