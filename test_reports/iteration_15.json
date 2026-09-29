@@ -1,0 +1,53 @@
+{
+  "summary": "Iteration 15 - Web Push (PWA) + Campaign analytics (email open/click + push click tracking). Backend: 11/12 pytest passed (91.7%) in /app/backend/tests/test_iter15_push_campaigns.py. Verified GET /api/push/vapid-public-key (non-empty), POST /api/push/subscribe (upsert - no dupe on repeat), POST /api/push/unsubscribe, GET /api/admin/push/count (401 without auth, correct count with auth), POST /api/push/subscribe with invalid payload -> 400. Verified email open tracking (GIF 200, dedupe: two hits -> email_opened=1 not 2), email click tracking (302 to campaign.link, email_clicked=1, email_opened=1 because click implies open), push click tracking (302, push_clicked=1, email_clicked NOT incremented), invalid click -> 404, invalid open -> still returns 200 image/gif (privacy-safe). Verified admin campaigns list requires auth, publishing article/event with published:true auto-creates a campaign row via _announce background task, with email_sent=0 push_sent=0 as expected (0 active subscribers, 0 push subscriptions). Campaign list sorted newest-first. Frontend Playwright: sidebar admin-tab-campaigns switches to CampaignsManager, 5 summary stat cards render (Emails Sent, Opened, Email Clicks, Push Sent, Push Clicks) with correct % calculations (5/10=50% open, 2/10=20% click, 1/3=33% push click), push-subscriber-count shows '0 devices subscribed to push', campaign-row-0 renders with kind badge + all counters + date, and articles tab shows data-testid='campaign-inline' underneath the article that has a campaign with 'Email 10 sent · 5 opened (50%) · 2 clicked (20%) Push 3 sent · 1 clicked (33%)'. Cleanup verified: 0 QA articles/events/campaigns/recipients/push subs remain in DB.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/admin/articles/{aid}/notify and POST /api/admin/events/{eid}/notify",
+        "issue": "Manual notify endpoints call _send_newsletter directly instead of _announce, so they do NOT create a new campaign row and do NOT dispatch web push. Per review request expectation ('each create an additional campaign row'), this is broken. Result: manual re-notify sends emails but produces zero tracking analytics (no campaign, no recipients with tokens, no open/click tracking on those emails). Also skips push entirely.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "GET /api/track/click/{token}",
+        "issue": "When campaign row exists but has no 'link' field for any reason, RedirectResponse falls back to url='/' which under FastAPI's RedirectResponse becomes a redirect to '/' relative to the request host. Not exploitable but consider redirecting to a safe absolute URL (e.g., public_base()) if link is missing/empty."
+      },
+      {
+        "endpoint": "POST /api/push/subscribe",
+        "issue": "No auth/rate-limit. Anyone can POST arbitrary VAPID subscriptions with any keys. If keys don't correspond to a real endpoint, subsequent _send_push will just fail per-sub (handled) - low impact - but a malicious client can bloat push_subscriptions collection. Consider a lightweight abuse guard (per-IP rate limit) or storing user_agent for admin visibility."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter15_push_campaigns.py",
+    "/app/test_reports/pytest/iter15.xml"
+  ],
+  "action_items": [
+    "FIX (HIGH): Update /api/admin/articles/{aid}/notify and /api/admin/events/{eid}/notify to schedule bg.add_task(_announce, kind, doc, public_base(request)) instead of _send_newsletter directly, so each manual notify creates its own campaign row (with tracking) AND dispatches web push - matches the auto-publish path and the review-request spec.",
+    "(Optional) Validate subscription.keys shape (p256dh + auth non-empty strings) before upserting into push_subscriptions.",
+    "(Optional) Add index on campaigns.created_at desc for list_campaigns sort at scale (currently indexed only on ref_id)."
+  ],
+  "critical_code_review_comments": [
+    "server.py _announce awaits _send_newsletter and _send_push sequentially inside the background task; if _send_newsletter raises (e.g., Resend outage), _send_push never runs. Consider try/except around each dispatcher so a partial failure doesn't skip the other channel.",
+    "_send_newsletter+_send_push each insert campaign_recipients one-by-one in a loop; for 10k+ subscribers this is N round-trips. Consider bulk insert_many(chunks).",
+    "track_click uses HTTPException(404) if the token row is missing; but the /track/open path silently returns a GIF for unknown tokens (privacy-safe / mail-client-safe). That is the correct asymmetry, worth a code comment for future maintainers.",
+    "Push subscriptions store 'email' lowercased but stripping to None if empty; if the same browser subscribes twice with different email values, the second overwrites the first (via update_one on endpoint) - probably intended.",
+    "NotifyBell/push.js: browser push permission can't be tested headless (skipped intentionally). Ensure lib/push.js gracefully handles Notification.permission='denied' and 'default' without console errors - not tested this round."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter15_push_campaigns.py"
+  ],
+  "success_rate": {"backend": "91.7% (11/12) - the 1 failure is a real product bug in manual notify endpoints, not a test issue", "frontend": "100%"},
+  "test_credentials": "Admin JWT obtained via login+2FA (code from mongo db.auth_challenges) and reused via HL_TOKEN env for pytest and localStorage.hl_token for Playwright. Credentials unchanged: danieldominiquebrooks@gmail.com / HealthLink@2026!",
+  "seed_data_creation": "Seeded: campaign 'qa-ui-camp-1' + campaign_recipients tokens 'qa_tok_email' and 'qa_tok_push' + push subscription endpoint 'https://example.com/ep-TEST1' + articles/events titled 'QA Announce *'. ALL deleted post-run. Verified final DB: 0 remaining QA rows across campaigns/campaign_recipients/push_subscriptions/articles/events.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: HL_TOKEN=<jwt> pytest /app/backend/tests/test_iter15_push_campaigns.py -v -n 0 --junitxml=/app/test_reports/pytest/iter15.xml (needs mongosh available on PATH for cleanup fixture; uses pymongo directly). If the main agent fixes notify endpoints to use _announce, test_manual_notify_creates_additional_campaign_rows will flip to pass and expected count is before+1 per notify call. Verify 0 active subscribers before running publish tests to avoid live Resend emails. Frontend flow verified: admin-tab-campaigns -> campaigns-manager -> 5 stat cards + push-subscriber-count + campaign-row-{i}, and campaign-inline appears under matching article/event rows in Articles/Events tabs.",
+  "rca of the issue": "Manual notify handlers were written before campaign-tracking existed and were not updated when _announce() was introduced. They still bg.add_task(_send_newsletter, kind, doc, public_base(request)) with NO campaign_id argument, so _send_newsletter uses its default '' path that skips campaign_recipients insertion and skips the email_sent counter update. Consequence: (a) no campaign row created, (b) email is sent but no open/click tracking pixel or tracked link (tokens are only generated when campaign_id truthy), (c) push notification is never triggered from the manual notify path. Fix: replace both bg.add_task calls with bg.add_task(_announce, kind, doc, public_base(request)) and drop the subscribers count from the response (or compute it after)."
+}

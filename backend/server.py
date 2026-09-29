@@ -1376,7 +1376,7 @@ async def notify_article(aid: str, request: Request, bg: BackgroundTasks, admin:
     if not doc:
         raise HTTPException(status_code=404, detail="Article not found")
     count = await db.subscribers.count_documents({"active": True})
-    bg.add_task(_send_newsletter, "article", doc, public_base(request))
+    bg.add_task(_announce, "article", doc, public_base(request))
     return {"ok": True, "queued": count}
 
 @api_router.post("/admin/events/{eid}/notify")
@@ -1385,7 +1385,7 @@ async def notify_event(eid: str, request: Request, bg: BackgroundTasks, admin: d
     if not doc:
         raise HTTPException(status_code=404, detail="Event not found")
     count = await db.subscribers.count_documents({"active": True})
-    bg.add_task(_send_newsletter, "event", doc, public_base(request))
+    bg.add_task(_announce, "event", doc, public_base(request))
     return {"ok": True, "queued": count}
 
 @api_router.get("/newsletter/unsubscribe")
@@ -1535,8 +1535,14 @@ async def _announce(kind: str, doc: dict, base: str):
     }
     await db.campaigns.insert_one(dict(campaign))
     cid = campaign["id"]
-    await _send_newsletter(kind, doc, base, cid)
-    await _send_push(kind, doc, base, cid)
+    try:
+        await _send_newsletter(kind, doc, base, cid)
+    except Exception as e:
+        logger.error(f"Announce email dispatch failed: {e}")
+    try:
+        await _send_push(kind, doc, base, cid)
+    except Exception as e:
+        logger.error(f"Announce push dispatch failed: {e}")
 
 @api_router.get("/admin/campaigns")
 async def list_campaigns(admin: dict = Depends(get_current_admin)):
