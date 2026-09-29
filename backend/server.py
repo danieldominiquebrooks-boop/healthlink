@@ -6,7 +6,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, Query, UploadFile, File, BackgroundTasks
-from fastapi.responses import Response, HTMLResponse
+from fastapi.responses import Response, HTMLResponse, RedirectResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
@@ -25,6 +25,9 @@ from datetime import datetime, timezone, timedelta
 from bson import ObjectId
 import secrets
 import ipaddress
+import json
+import base64
+from pywebpush import webpush, WebPushException
 from html import escape
 from html.parser import HTMLParser
 from urllib.parse import urlparse
@@ -111,6 +114,10 @@ EMAIL_BASE_URL = "https://integrations.emergentagent.com"
 EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY", "")
 EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "My Healthcare Link")
 EMAIL_REPLY_TO = os.environ.get("EMAIL_REPLY_TO")
+
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "mailto:admin@myhealthcarelink.app")
 
 _SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
 _CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
@@ -210,7 +217,8 @@ def _twofa_html(code: str) -> str:
             f'<p style="font-size:12px;color:#94a3b8;margin-top:24px">Sent by {escape(EMAIL_FROM_NAME)}. '
             f'We never ask for your password by email.</p></div></td></tr></table>')
 
-def _newsletter_html(heading: str, title: str, summary: str, link: str, unsub: str) -> str:
+def _newsletter_html(heading: str, title: str, summary: str, link: str, unsub: str, pixel: str = "") -> str:
+    pixel_tag = f'<img src="{escape(pixel)}" width="1" height="1" alt="" style="display:none">' if pixel else ""
     return (f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;background:#FAF7F2">'
             f'<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;padding:32px">'
             f'<h1 style="color:#0B132B;margin:0 0 4px;font-size:20px">{escape(EMAIL_FROM_NAME)}</h1>'
@@ -222,7 +230,7 @@ def _newsletter_html(heading: str, title: str, summary: str, link: str, unsub: s
             f'<hr style="border:none;border-top:1px solid #eee;margin:24px 0">'
             f'<p style="font-size:12px;color:#94a3b8">You are receiving this because you subscribed to updates from '
             f'{escape(EMAIL_FROM_NAME)}. <a href="{escape(unsub)}" style="color:#94a3b8">Unsubscribe</a>.</p>'
-            f'</div></td></tr></table>')
+            f'</div>{pixel_tag}</td></tr></table>')
 
 # ----------------------------------------------------------------------------
 # IP geolocation (free, keyless) + client IP
@@ -917,7 +925,7 @@ async def create_article(payload: ArticleBase, request: Request, bg: BackgroundT
     await db.articles.insert_one(doc)
     doc.pop("_id", None)
     if doc.get("published"):
-        bg.add_task(_send_newsletter, "article", doc, public_base(request))
+        bg.add_task(_announce, "article", doc, public_base(request))
     return doc
 
 @api_router.put("/admin/articles/{aid}")
@@ -930,7 +938,7 @@ async def update_article(aid: str, payload: ArticleBase, request: Request, bg: B
     if doc.get("published") and not existing.get("announced"):
         await db.articles.update_one({"id": aid}, {"$set": {"announced": True}})
         doc["announced"] = True
-        bg.add_task(_send_newsletter, "article", doc, public_base(request))
+        bg.add_task(_announce, "article", doc, public_base(request))
     return doc
 
 @api_router.delete("/admin/articles/{aid}")
@@ -975,7 +983,7 @@ async def create_event(payload: EventBase, request: Request, bg: BackgroundTasks
     await db.events.insert_one(doc)
     doc.pop("_id", None)
     if doc.get("published"):
-        bg.add_task(_send_newsletter, "event", doc, public_base(request))
+        bg.add_task(_announce, "event", doc, public_base(request))
     return doc
 
 @api_router.put("/admin/events/{eid}")
@@ -988,7 +996,7 @@ async def update_event(eid: str, payload: EventBase, request: Request, bg: Backg
     if doc.get("published") and not existing.get("announced"):
         await db.events.update_one({"id": eid}, {"$set": {"announced": True}})
         doc["announced"] = True
-        bg.add_task(_send_newsletter, "event", doc, public_base(request))
+        bg.add_task(_announce, "event", doc, public_base(request))
     return doc
 
 @api_router.delete("/admin/events/{eid}")
@@ -1153,6 +1161,9 @@ async def startup():
     await db.visits.create_index("session_id")
     await db.visits.create_index("ts")
     await db.quiz_responses.create_index("quiz_id")
+    await db.push_subscriptions.create_index("endpoint", unique=True)
+    await db.campaign_recipients.create_index("token", unique=True)
+    await db.campaigns.create_index("ref_id")
     try:
         await db.auth_challenges.create_index("expires_at", expireAfterSeconds=0)
     except Exception:
@@ -1324,7 +1335,7 @@ async def delete_subscriber(sid: str, admin: dict = Depends(get_current_admin)):
     await db.subscribers.delete_one({"id": sid})
     return {"ok": True}
 
-async def _send_newsletter(kind: str, doc: dict, base: str):
+async def _send_newsletter(kind: str, doc: dict, base: str, campaign_id: str = ""):
     subs = await db.subscribers.find({"active": True}, {"_id": 0}).to_list(5000)
     if kind == "article":
         heading = "New article on My Healthcare Link"
@@ -1336,14 +1347,28 @@ async def _send_newsletter(kind: str, doc: dict, base: str):
         title = doc.get("name", "")
         summary = doc.get("description", "")
         link = f"{base}/events/{doc.get('id', '')}"
+    sent = 0
     for s in subs:
         unsub = f"{base}/api/newsletter/unsubscribe?token={s['unsubscribe_token']}"
+        pixel = tracked = ""
+        token = secrets.token_urlsafe(16)
+        if campaign_id:
+            tracked = f"{base}/api/track/click/{token}"
+            pixel = f"{base}/api/track/open/{token}.gif"
         try:
             await send_email(to=s["email"], subject=f"{heading}: {title}",
-                             html=_newsletter_html(heading, title, summary, link, unsub))
+                             html=_newsletter_html(heading, title, summary, tracked or link, unsub, pixel))
+            if campaign_id:
+                await db.campaign_recipients.insert_one({
+                    "token": token, "campaign_id": campaign_id, "channel": "email",
+                    "email": s["email"], "opened": False, "clicked": False, "created_at": now_iso(),
+                })
+            sent += 1
         except Exception as e:
             logger.error(f"Newsletter send to {s['email']} failed: {e}")
         await asyncio.sleep(0.4)
+    if campaign_id:
+        await db.campaigns.update_one({"id": campaign_id}, {"$inc": {"email_sent": sent}})
 
 @api_router.post("/admin/articles/{aid}/notify")
 async def notify_article(aid: str, request: Request, bg: BackgroundTasks, admin: dict = Depends(get_current_admin)):
@@ -1376,6 +1401,151 @@ async def newsletter_unsubscribe(token: str):
             f'<h1 style="color:#0B132B">My Healthcare Link</h1>'
             f'<p style="color:#334155;font-size:16px">{escape(msg)}</p></div></body></html>')
     return HTMLResponse(content=html)
+
+# ----------------------------------------------------------------------------
+# Web Push notifications + campaign open/click tracking
+# ----------------------------------------------------------------------------
+# 1x1 transparent GIF used as the email open-tracking pixel.
+_PIXEL = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
+
+class PushSubscribeInput(BaseModel):
+    subscription: Dict[str, Any]
+    email: Optional[str] = None
+
+class PushUnsubscribeInput(BaseModel):
+    endpoint: str
+
+@api_router.get("/push/vapid-public-key")
+async def push_vapid_public_key():
+    return {"public_key": VAPID_PUBLIC_KEY}
+
+@api_router.post("/push/subscribe")
+async def push_subscribe(payload: PushSubscribeInput):
+    sub = payload.subscription or {}
+    endpoint = sub.get("endpoint")
+    if not endpoint or not sub.get("keys"):
+        raise HTTPException(status_code=400, detail="Invalid push subscription")
+    await db.push_subscriptions.update_one(
+        {"endpoint": endpoint},
+        {"$set": {"endpoint": endpoint, "keys": sub["keys"],
+                  "email": (payload.email or "").lower().strip() or None},
+         "$setOnInsert": {"id": new_id(), "created_at": now_iso()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+@api_router.post("/push/unsubscribe")
+async def push_unsubscribe(payload: PushUnsubscribeInput):
+    await db.push_subscriptions.delete_one({"endpoint": payload.endpoint})
+    return {"ok": True}
+
+@api_router.get("/track/open/{token}.gif")
+async def track_open(token: str):
+    r = await db.campaign_recipients.find_one({"token": token})
+    if r and not r.get("opened"):
+        await db.campaign_recipients.update_one({"token": token}, {"$set": {"opened": True, "opened_at": now_iso()}})
+        await db.campaigns.update_one({"id": r["campaign_id"]}, {"$inc": {"email_opened": 1}})
+    return Response(content=_PIXEL, media_type="image/gif", headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
+
+@api_router.get("/track/click/{token}")
+async def track_click(token: str):
+    r = await db.campaign_recipients.find_one({"token": token})
+    if not r:
+        raise HTTPException(status_code=404, detail="This link is no longer valid.")
+    if not r.get("clicked"):
+        await db.campaign_recipients.update_one({"token": token}, {"$set": {"clicked": True, "clicked_at": now_iso()}})
+        field = "push_clicked" if r.get("channel") == "push" else "email_clicked"
+        await db.campaigns.update_one({"id": r["campaign_id"]}, {"$inc": {field: 1}})
+        # A click implies the message was opened, even if the pixel was blocked.
+        if r.get("channel") == "email" and not r.get("opened"):
+            await db.campaign_recipients.update_one({"token": token}, {"$set": {"opened": True, "opened_at": now_iso()}})
+            await db.campaigns.update_one({"id": r["campaign_id"]}, {"$inc": {"email_opened": 1}})
+    camp = await db.campaigns.find_one({"id": r["campaign_id"]}, {"_id": 0})
+    return RedirectResponse(url=(camp or {}).get("link", "/"), status_code=302)
+
+def _webpush_send(sub: dict, payload: str):
+    """Returns True on success, None if the subscription is gone (delete it), False on other errors."""
+    try:
+        webpush(
+            subscription_info={"endpoint": sub["endpoint"], "keys": sub["keys"]},
+            data=payload,
+            vapid_private_key=VAPID_PRIVATE_KEY,
+            vapid_claims={"sub": VAPID_SUBJECT},
+        )
+        return True
+    except WebPushException as e:
+        code = getattr(getattr(e, "response", None), "status_code", None)
+        if code in (404, 410):
+            return None
+        logger.error(f"Push send failed: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Push send error: {e}")
+        return False
+
+async def _send_push(kind: str, doc: dict, base: str, campaign_id: str):
+    if not VAPID_PRIVATE_KEY:
+        return
+    subs = await db.push_subscriptions.find({}, {"_id": 0}).to_list(20000)
+    if not subs:
+        return
+    if kind == "article":
+        body = doc.get("title", "")
+        link = f"{base}/blog/{doc.get('slug', '')}"
+        heading = "New article"
+    else:
+        body = doc.get("name", "")
+        link = f"{base}/events/{doc.get('id', '')}"
+        heading = "New event"
+    sent = 0
+    for sub in subs:
+        token = secrets.token_urlsafe(16)
+        payload = json.dumps({
+            "title": f"{heading} · {EMAIL_FROM_NAME}",
+            "body": body,
+            "url": f"{base}/api/track/click/{token}",
+            "icon": "/icon-192.png",
+            "badge": "/icon-192.png",
+        })
+        result = await asyncio.to_thread(_webpush_send, sub, payload)
+        if result is None:
+            await db.push_subscriptions.delete_one({"endpoint": sub["endpoint"]})
+        elif result:
+            await db.campaign_recipients.insert_one({
+                "token": token, "campaign_id": campaign_id, "channel": "push",
+                "email": sub.get("email"), "opened": False, "clicked": False, "created_at": now_iso(),
+            })
+            sent += 1
+    if sent:
+        await db.campaigns.update_one({"id": campaign_id}, {"$inc": {"push_sent": sent}})
+
+async def _announce(kind: str, doc: dict, base: str):
+    """Create a tracked campaign, then dispatch email + web push for a new article/event."""
+    if kind == "article":
+        title = doc.get("title", "")
+        link = f"{base}/blog/{doc.get('slug', '')}"
+    else:
+        title = doc.get("name", "")
+        link = f"{base}/events/{doc.get('id', '')}"
+    campaign = {
+        "id": new_id(), "kind": kind, "ref_id": doc.get("id"), "title": title, "link": link,
+        "created_at": now_iso(),
+        "email_sent": 0, "email_opened": 0, "email_clicked": 0,
+        "push_sent": 0, "push_clicked": 0,
+    }
+    await db.campaigns.insert_one(dict(campaign))
+    cid = campaign["id"]
+    await _send_newsletter(kind, doc, base, cid)
+    await _send_push(kind, doc, base, cid)
+
+@api_router.get("/admin/campaigns")
+async def list_campaigns(admin: dict = Depends(get_current_admin)):
+    docs = await db.campaigns.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    return docs
+
+@api_router.get("/admin/push/count")
+async def push_count(admin: dict = Depends(get_current_admin)):
+    return {"count": await db.push_subscriptions.count_documents({})}
 
 # ----------------------------------------------------------------------------
 # About page

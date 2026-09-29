@@ -115,6 +115,7 @@ const TABS = [
   { key: "reviews", label: "Reviews", icon: MessageSquare },
   { key: "subscribers", label: "Subscribers", icon: Mail },
   { key: "quizzes", label: "Quizzes", icon: ClipboardList },
+  { key: "campaigns", label: "Campaigns", icon: Megaphone },
   { key: "analytics", label: "Analytics", icon: BarChart3 },
   { key: "settings", label: "Settings", icon: SettingsIcon },
 ];
@@ -169,6 +170,7 @@ export default function AdminDashboard() {
             : tab === "settings" ? <SettingsManager />
             : tab === "subscribers" ? <SubscribersManager />
             : tab === "quizzes" ? <QuizzesManager />
+            : tab === "campaigns" ? <CampaignsManager />
             : tab === "analytics" ? <AnalyticsManager />
             : <EntityManager key={tab} entity={tab} />}
         </div>
@@ -180,6 +182,120 @@ export default function AdminDashboard() {
 // -----------------------------------------------------------------------------
 // Generic entity CRUD manager
 // -----------------------------------------------------------------------------
+const pct = (n, d) => (d > 0 ? Math.round((n / d) * 100) : 0);
+
+function CampaignInline({ s }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs" data-testid="campaign-inline">
+      <span className="text-[#B8912B] font-semibold">Email</span>
+      <span className="text-muted-foreground">
+        {s.email_sent} sent · {s.email_opened} opened ({pct(s.email_opened, s.email_sent)}%) · {s.email_clicked} clicked ({pct(s.email_clicked, s.email_sent)}%)
+      </span>
+      {s.push_sent > 0 && (
+        <>
+          <span className="text-[#E89D93] font-semibold">Push</span>
+          <span className="text-muted-foreground">
+            {s.push_sent} sent · {s.push_clicked} clicked ({pct(s.push_clicked, s.push_sent)}%)
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function CampaignsManager() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [pushCount, setPushCount] = useState(null);
+
+  useEffect(() => {
+    Promise.all([api.get("/admin/campaigns"), api.get("/admin/push/count")])
+      .then(([c, p]) => { setRows(c.data || []); setPushCount(p.data?.count ?? 0); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const totals = rows.reduce((a, c) => ({
+    email_sent: a.email_sent + (c.email_sent || 0),
+    email_opened: a.email_opened + (c.email_opened || 0),
+    email_clicked: a.email_clicked + (c.email_clicked || 0),
+    push_sent: a.push_sent + (c.push_sent || 0),
+    push_clicked: a.push_clicked + (c.push_clicked || 0),
+  }), { email_sent: 0, email_opened: 0, email_clicked: 0, push_sent: 0, push_clicked: 0 });
+
+  const Stat = ({ label, value, sub }) => (
+    <div className="bg-white rounded-2xl border border-[#E89D93]/15 px-5 py-4" data-testid={`campaign-stat-${label.toLowerCase().replace(/\s/g, "-")}`}>
+      <p className="text-xs uppercase tracking-widest text-[#B8912B] font-semibold">{label}</p>
+      <p className="text-2xl font-bold text-[#0F172A] mt-1 tabular-nums">{value}</p>
+      {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+    </div>
+  );
+
+  return (
+    <div data-testid="campaigns-manager">
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div>
+          <h2 className="font-display text-2xl font-bold text-[#0F172A]">Campaign analytics</h2>
+          <p className="text-sm text-muted-foreground">Email opens & clicks and push delivery for every article and event announcement.</p>
+        </div>
+        <span className="text-sm text-[#0F172A] bg-white border border-[#E89D93]/20 rounded-xl px-4 py-2" data-testid="push-subscriber-count">
+          <Megaphone size={14} className="inline mr-1.5 text-[#E89D93]" />
+          {pushCount == null ? "…" : pushCount} device{pushCount === 1 ? "" : "s"} subscribed to push
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+        <Stat label="Emails sent" value={totals.email_sent} />
+        <Stat label="Opened" value={totals.email_opened} sub={`${pct(totals.email_opened, totals.email_sent)}% open rate`} />
+        <Stat label="Email clicks" value={totals.email_clicked} sub={`${pct(totals.email_clicked, totals.email_sent)}% click rate`} />
+        <Stat label="Push sent" value={totals.push_sent} />
+        <Stat label="Push clicks" value={totals.push_clicked} sub={`${pct(totals.push_clicked, totals.push_sent)}% click rate`} />
+      </div>
+
+      {loading ? (
+        <p className="px-4 py-10 text-center text-sm text-muted-foreground">Loading…</p>
+      ) : rows.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-[#E89D93]/15 px-4 py-12 text-center" data-testid="no-campaigns">
+          <Megaphone size={28} className="mx-auto text-[#E89D93] mb-2" />
+          <p className="text-sm text-muted-foreground">No campaigns yet. Publish an article or event, or hit the megaphone on one, to send your first announcement.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-[#E89D93]/15 overflow-x-auto">
+          <table className="w-full text-sm min-w-[720px]">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground border-b border-slate-100">
+                <th className="px-4 py-3 font-semibold">Announcement</th>
+                <th className="px-4 py-3 font-semibold">Sent</th>
+                <th className="px-4 py-3 font-semibold">Email opened</th>
+                <th className="px-4 py-3 font-semibold">Email clicked</th>
+                <th className="px-4 py-3 font-semibold">Push sent</th>
+                <th className="px-4 py-3 font-semibold">Push clicked</th>
+                <th className="px-4 py-3 font-semibold">Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map((c, i) => (
+                <tr key={c.id} data-testid={`campaign-row-${i}`} className="hover:bg-[#FAF7F2]">
+                  <td className="px-4 py-3">
+                    <span className="font-semibold text-[#0F172A]">{c.title || "(untitled)"}</span>
+                    <span className="ml-2 text-xs text-[#B8912B] uppercase tracking-wide">{c.kind}</span>
+                  </td>
+                  <td className="px-4 py-3 tabular-nums">{c.email_sent}</td>
+                  <td className="px-4 py-3 tabular-nums">{c.email_opened} <span className="text-muted-foreground">({pct(c.email_opened, c.email_sent)}%)</span></td>
+                  <td className="px-4 py-3 tabular-nums">{c.email_clicked} <span className="text-muted-foreground">({pct(c.email_clicked, c.email_sent)}%)</span></td>
+                  <td className="px-4 py-3 tabular-nums">{c.push_sent}</td>
+                  <td className="px-4 py-3 tabular-nums">{c.push_clicked} <span className="text-muted-foreground">({pct(c.push_clicked, c.push_sent)}%)</span></td>
+                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{c.created_at ? new Date(c.created_at).toLocaleDateString() : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EntityManager({ entity }) {
   const schema = SCHEMAS[entity];
   const [items, setItems] = useState([]);
@@ -196,6 +312,7 @@ function EntityManager({ entity }) {
   const [fltCategory, setFltCategory] = useState("all");
   const [catOptions, setCatOptions] = useState([]);
   const [notifyItem, setNotifyItem] = useState(null);
+  const [campStats, setCampStats] = useState({});
 
   const load = useCallback(() => {
     setLoading(true);
@@ -224,6 +341,19 @@ function EntityManager({ entity }) {
   useEffect(() => {
     if (entity === "providers") api.get("/categories").then((r) => setCatOptions(r.data.map((c) => c.name))).catch(() => {});
   }, [entity]);
+
+  useEffect(() => {
+    if (entity !== "articles" && entity !== "events") return;
+    api.get("/admin/campaigns").then((r) => {
+      const map = {};
+      for (const c of r.data) {
+        const m = map[c.ref_id] || (map[c.ref_id] = { email_sent: 0, email_opened: 0, email_clicked: 0, push_sent: 0, push_clicked: 0 });
+        m.email_sent += c.email_sent || 0; m.email_opened += c.email_opened || 0; m.email_clicked += c.email_clicked || 0;
+        m.push_sent += c.push_sent || 0; m.push_clicked += c.push_clicked || 0;
+      }
+      setCampStats(map);
+    }).catch(() => {});
+  }, [entity, items]);
 
   const openNew = () => {
     setEditing(null);
@@ -429,6 +559,9 @@ function EntityManager({ entity }) {
                   <p className="text-sm text-muted-foreground truncate">
                     {item.specialty || item.category || item.excerpt || item.description || item.date || ""}
                   </p>
+                  {(entity === "articles" || entity === "events") && campStats[item.id] && (
+                    <CampaignInline s={campStats[item.id]} />
+                  )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {(entity === "articles" || entity === "events") && (
@@ -524,7 +657,7 @@ function EntityManager({ entity }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Notify subscribers?</AlertDialogTitle>
             <AlertDialogDescription>
-              This emails all active mailing-list subscribers about "{notifyItem?.[titleKey]}". Each email includes a one-click unsubscribe link.
+              This emails all active mailing-list subscribers about "{notifyItem?.[titleKey]}" and pushes a notification to everyone who enabled alerts. Each email includes a one-click unsubscribe link.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

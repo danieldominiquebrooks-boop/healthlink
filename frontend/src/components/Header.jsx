@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X, ChevronDown, MapPin, Search, Heart, Sun, Moon } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { InstallButton } from "@/components/InstallButton";
+import { NotifyBell } from "@/components/NotifyBell";
 import { NAV_LINKS, COUNTRY_NAMES, regionsFor, ALL_COUNTRIES, ALL_REGIONS } from "@/lib/constants";
 import api from "@/lib/api";
 import { useLocation as useAppLocation } from "@/context/LocationContext";
@@ -141,6 +142,8 @@ export function Header() {
               {dark ? <Sun size={17} className="text-[#D4AF37]" /> : <Moon size={17} />}
             </button>
 
+            <NotifyBell dark={dark} variant="desktop" />
+
             <Link
               to="/saved"
               data-testid="header-saved-link"
@@ -194,6 +197,7 @@ export function Header() {
           >
             {dark ? <Sun size={15} className="text-[#D4AF37]" /> : <Moon size={15} />} {dark ? "Light mode" : "Dark mode"}
           </button>
+          <NotifyBell dark={dark} variant="mobile" />
           <div className={`pt-2 border-t ${dark ? "border-white/10" : "border-black/10"}`}>
             <p className="px-3 pt-2 pb-1 text-xs uppercase tracking-widest text-[#D4AF37]">Country</p>
             <div className="grid grid-cols-2 gap-1">
