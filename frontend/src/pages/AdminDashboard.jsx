@@ -766,6 +766,9 @@ function Field({ field, value, onChange, form }) {
           <datalist id={`regions-${field.key}`}>
             {regionsFor(form?.country).map((o) => <option key={o} value={o} />)}
           </datalist>
+          <p className="mt-1 text-xs text-muted-foreground" data-testid={`region-hint-${field.key}`}>
+            Leave blank to make this visible in every parish of the country.
+          </p>
         </>
       ) : field.type === "select" ? (
         <Select value={value || ""} onValueChange={onChange}>

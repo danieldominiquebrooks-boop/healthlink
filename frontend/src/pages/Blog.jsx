@@ -36,7 +36,7 @@ export default function Blog() {
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-bold uppercase tracking-widest text-[#D4AF37]">{a.category || "Article"}</span>
                     {a.featured && <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#D4AF37] text-[#0B132B]" data-testid={`article-featured-${i}`}>★ Featured</span>}
-                    {a.country && <span className="text-[11px] text-muted-foreground flex items-center gap-1"><MapPin size={10} /> {a.region ? `${a.region}, ${a.country}` : a.country}</span>}
+                    {a.country && <span className="text-[11px] text-muted-foreground flex items-center gap-1" data-testid={`article-location-${i}`}><MapPin size={10} /> {a.region ? `${a.region}, ${a.country}` : `Country-wide · ${a.country}`}</span>}
                   </div>
                   <h3 className="font-display font-bold text-[#0F172A] mt-2 leading-snug">{a.title}</h3>
                   <p className="text-sm text-muted-foreground mt-2 line-clamp-3">{a.excerpt}</p>

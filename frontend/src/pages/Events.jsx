@@ -37,6 +37,7 @@ export default function Events() {
                   <h3 className="font-display font-bold text-[#0F172A] leading-snug">{ev.name}</h3>
                   <div className="mt-2 space-y-1 text-sm text-muted-foreground">
                     {ev.location && <p className="flex items-center gap-1.5"><MapPin size={13} className="text-[#E89D93]" /> {ev.location}{ev.country ? `, ${ev.country}` : ""}</p>}
+                    {!ev.region && ev.country && <p className="flex items-center gap-1.5 text-[#B8912B] font-semibold" data-testid={`event-countrywide-${i}`}><MapPin size={13} className="text-[#B8912B]" /> Country-wide · {ev.country}</p>}
                     {ev.organizer && <p className="flex items-center gap-1.5"><User size={13} className="text-[#E89D93]" /> {ev.organizer}</p>}
                   </div>
                   <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{ev.description}</p>
