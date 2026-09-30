@@ -64,6 +64,16 @@ def slugify(text: str) -> str:
     s = re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')
     return s or new_id()[:8]
 
+def apply_region_filter(query: dict, region: Optional[str]) -> None:
+    """Filter by parish/island, but ALSO include country-wide items (no region set)
+    so an entry added without a parish is visible in every parish of its country."""
+    if region and region not in ("All Parishes", "All Parishes/Islands"):
+        query.setdefault("$and", []).append({"$or": [
+            {"region": region},
+            {"region": {"$in": ["", None]}},
+            {"region": {"$exists": False}},
+        ]})
+
 # ----------------------------------------------------------------------------
 # Object storage
 # ----------------------------------------------------------------------------
@@ -615,8 +625,7 @@ async def list_providers(
     query = {"active": True}
     if country and country != "All Countries":
         query["country"] = country
-    if region and region not in ("All Parishes", "All Parishes/Islands"):
-        query["region"] = region
+    apply_region_filter(query, region)
     if specialty:
         query["specialties"] = specialty
     if category:
@@ -848,8 +857,7 @@ async def list_services(country: Optional[str] = None, region: Optional[str] = N
     query = {"active": True}
     if country and country != "All Countries":
         query["country"] = country
-    if region and region not in ("All Parishes", "All Parishes/Islands"):
-        query["region"] = region
+    apply_region_filter(query, region)
     if q:
         rx = {"$regex": re.escape(q), "$options": "i"}
         query["$or"] = [{"name": rx}, {"description": rx}, {"category": rx}]
@@ -891,8 +899,7 @@ async def list_articles(country: Optional[str] = None, region: Optional[str] = N
     query = {"published": True}
     if country and country != "All Countries":
         query["country"] = country
-    if region and region not in ("All Parishes", "All Parishes/Islands"):
-        query["region"] = region
+    apply_region_filter(query, region)
     if category:
         query["category"] = category
     if q:
@@ -954,8 +961,7 @@ async def list_events(country: Optional[str] = None, region: Optional[str] = Non
     query = {"published": True}
     if country and country != "All Countries":
         query["country"] = country
-    if region and region not in ("All Parishes", "All Parishes/Islands"):
-        query["region"] = region
+    apply_region_filter(query, region)
     if q:
         rx = {"$regex": re.escape(q), "$options": "i"}
         query["$or"] = [{"name": rx}, {"description": rx}, {"location": rx}]
