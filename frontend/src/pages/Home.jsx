@@ -79,7 +79,7 @@ export default function Home() {
             ) : (
               <h1 className="mt-6 font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.05]" data-testid="hero-heading">
                 Find trusted <span className="hl-gold-text">healthcare</span> <br className="hidden sm:block" />
-                across the <span className="hl-blush-text">Caribbean</span>
+                across the <span className="hl-blush-text" data-testid="hero-place">{country && country !== "All Countries" ? country : "Caribbean"}</span>
               </h1>
             )}
             <p className="mt-5 text-lg text-slate-300 max-w-xl leading-relaxed" data-testid="hero-subheading">
