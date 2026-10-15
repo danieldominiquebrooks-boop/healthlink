@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 16: tested hero stats change, directory search tracking + admin Search Gaps tab, article categories API, Blog category chips, admin Categories 'Used for' (article type), admin Articles category datalist input, and directory regression. Backend 11/11 pytest passed; all 9 requested features verified in UI via Playwright. No critical issues found; only minor UX/code-quality notes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/search/track", "issue": "Public, unauthenticated, no rate limit and no max length on q. Anyone can flood db.searches or put very long strings into the admin Search Gaps view. Add something like q max_length=100 plus simple per-IP throttling."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "SearchGapsManager empty state", "issue": "After Clear (0 searches recorded) with 'only gaps' toggle ON, message reads 'No unmet searches yet — every search found something.' That's misleading when there are no searches at all. Show 'No searches recorded yet' when total_searches === 0.", "selector": "[data-testid='search-gaps-empty']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Directory", "issues": ["Search tracking runs inside the providers useEffect, so changing country/region/category/sort while q is set records extra duplicate searches for the same term. Partial terms typed with >900ms pauses are also recorded (e.g. 'car' then 'cardio'). This inflates counts."]},
+      {"screen": "Admin Search Gaps", "issues": ["The date range uses native <input type=date> (browser picker) instead of the shadcn calendar (likely the shared DateRangeBar, pre-existing)", "The Searches/No results columns are narrow (grid auto cols), so the numbers sit off-center under their wider headers"]},
+      {"screen": "Admin Categories", "issues": ["Add button label reads 'Add categorie' (bad pluralization of entity name)"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iter16_search_gaps_article_categories.py", "/app/test_reports/pytest/iter16.xml"],
+  "action_items": [
+    "(Optional) Add max_length plus rate limiting to POST /api/search/track",
+    "(Optional) Only track search when q changes (not other filters) to avoid duplicate counts",
+    "(Optional) Fix Search Gaps empty-state wording when total_searches is 0",
+    "(Optional) Fix 'Add categorie' label"
+  ],
+  "critical_code_review_comments": [
+    "AdminDashboard.jsx is ~1815 lines; split SearchGapsManager, Campaigns, Quiz editor etc. into separate files",
+    "server.py ~1928 lines; consider routers per domain",
+    "CategorySelect fetches all /categories and filters type !== 'article' client-side. Fine now (only 'category' types exist), but specialty/niche types created via /admin/categories/sync would also show in the provider category dropdown. Prefer api.get('/categories', {params:{type:'category'}})",
+    "DELETE /api/admin/search-gaps wipes all history with no date scoping; acceptable but irreversible"
+  ],
+  "updated_files": ["/app/frontend/src/pages/AdminDashboard.jsx (added data-testid='confirm-clear-searches-btn' to Search Gaps clear confirm action)", "/app/backend/tests/test_iter16_search_gaps_article_categories.py"],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "100% (9/9 requested flows)"},
+  "test_credentials": "Admin from /app/memory/test_credentials.md; 2FA code read from mongo auth_challenges",
+  "seed_data_creation": "All TEST_ articles/categories/campaign rows and TEST_zz searches were cleaned up. NOTE: the UI Clear test deleted ALL db.searches (this included a pre-existing 'dermatologist' entry).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: HL_TOKEN=<jwt> pytest /app/backend/tests/test_iter16_search_gaps_article_categories.py -v -n 0 (falls back to /tmp/hl_token; cleanup uses pymongo on localhost). Article category type value = 'article' (provider = 'category'). Blog chip testid = blog-cat-<name lowercased, spaces->'-'>. A site quiz popup ('This is a test' dialog with 'No thanks') opens on public pages after a few seconds and steals focus/blocks clicks; dismiss it in Playwright. 0 email/push subscribers, so publishing test articles sends nothing (it still creates campaign rows that need cleanup). 'dental' search returns 0 providers (genuine data gap)."
+}

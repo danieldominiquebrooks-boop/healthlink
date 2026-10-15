@@ -1468,7 +1468,7 @@ function SearchGapsManager() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={clear} className="bg-red-500 hover:bg-red-600">Clear</AlertDialogAction>
+            <AlertDialogAction onClick={clear} data-testid="confirm-clear-searches-btn" className="bg-red-500 hover:bg-red-600">Clear</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

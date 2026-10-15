@@ -1,3 +1,4 @@
+/* global clients */
 // Service worker — makes the app installable, available offline, and able to receive push.
 const CACHE = "hl-cache-v3";
 const SHELL = ["/", "/index.html", "/manifest.json", "/icon-192.png", "/icon-512.png", "/favicon.png"];

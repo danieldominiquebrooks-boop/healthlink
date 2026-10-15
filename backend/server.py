@@ -1254,7 +1254,7 @@ class SearchTrackInput(BaseModel):
 
 @api_router.post("/search/track")
 async def track_search(payload: SearchTrackInput):
-    term = payload.q.strip()
+    term = payload.q.strip()[:100]
     if len(term) < 2:
         return {"ok": False}
     await db.searches.insert_one({

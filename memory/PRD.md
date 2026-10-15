@@ -76,3 +76,10 @@ Responsive Caribbean healthcare directory web app for phone/tablet/desktop. Prov
 
 ## Next Tasks
 - Await client content or bulk import; optionally add image upload.
+
+## 2026-06 — Iteration 16
+- Home hero: removed "Countries Covered" counter (providers + articles only).
+- Search tracking: `POST /api/search/track` (from Directory search), admin "Search Gaps" tab (`GET/DELETE /api/admin/search-gaps`) showing terms, counts, zero-result counts, countries, date range filter.
+- Article categories: `GET /api/articles/categories`, Blog category chips filter, admin Articles category datalist input, Categories "Used for" (Providers | Articles/Blog) with article_count badge.
+- Tested: /app/test_reports/iteration_16.json (all pass).
+- Backlog unchanged: Payment integration (Kanoo/SunCash — awaiting user scoping), Share Provider, Provider Timezone, Hours Copy, Featured Carousel, Country Landing Pages, Merge Categories.
