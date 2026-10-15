@@ -39,8 +39,13 @@ export default function Directory() {
     if (specialty !== "all") p.specialty = specialty;
     p.sort = sort;
     const t = setTimeout(() => {
-      api.get("/providers", { params: p }).then((r) => setProviders(r.data)).catch(() => setProviders([])).finally(() => setLoading(false));
-    }, 250);
+      api.get("/providers", { params: p }).then((r) => {
+        setProviders(r.data);
+        if (q.trim().length >= 2) {
+          api.post("/search/track", { q: q.trim(), country: p.country || "", region: p.region || "", results: r.data.length }).catch(() => {});
+        }
+      }).catch(() => setProviders([])).finally(() => setLoading(false));
+    }, q ? 900 : 250);
     return () => clearTimeout(t);
   }, [q, country, region, category, specialty, sort]);
 

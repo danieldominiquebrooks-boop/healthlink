@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, Activity, Tags, BookOpen, Calendar, MessageSquare, Settings as SettingsIcon,
   Plus, Pencil, Trash2, LogOut, Check, X, Eye, ExternalLink, ShieldCheck,
-  Upload, Download, Image as ImageIcon, Star, BarChart3, Mail, Megaphone, ClipboardList,
+  Upload, Download, Image as ImageIcon, Star, BarChart3, Mail, Megaphone, ClipboardList, Search as SearchIcon,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -68,11 +68,12 @@ const SCHEMAS = {
     { key: "active", label: "Active", type: "switch" },
   ],
   categories: [
-    { key: "name", label: "Category name", req: true, full: true },
+    { key: "name", label: "Category name", req: true },
+    { key: "type", label: "Used for", type: "select", options: ["category", "article"], optionLabels: { category: "Providers", article: "Articles / Blog" } },
   ],
   articles: [
     { key: "title", label: "Title", req: true, full: true },
-    { key: "category", label: "Category" },
+    { key: "category", label: "Category", type: "article-category" },
     { key: "country", label: "Country", type: "country" },
     { key: "region", label: "Parish / Island", type: "region" },
     { key: "author", label: "Author" },
@@ -117,6 +118,7 @@ const TABS = [
   { key: "quizzes", label: "Quizzes", icon: ClipboardList },
   { key: "campaigns", label: "Campaigns", icon: Megaphone },
   { key: "analytics", label: "Analytics", icon: BarChart3 },
+  { key: "searches", label: "Search Gaps", icon: SearchIcon },
   { key: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
@@ -172,6 +174,7 @@ export default function AdminDashboard() {
             : tab === "quizzes" ? <QuizzesManager />
             : tab === "campaigns" ? <CampaignsManager />
             : tab === "analytics" ? <AnalyticsManager />
+            : tab === "searches" ? <SearchGapsManager />
             : <EntityManager key={tab} entity={tab} />}
         </div>
       </div>
@@ -554,7 +557,10 @@ function EntityManager({ entity }) {
                     {item.country && <Badge>{item.region ? `${item.region}, ${item.country}` : item.country}</Badge>}
                     {entity === "providers" && item.featured && <Badge color="gold">Featured</Badge>}
                     {(item.active === false || item.published === false) && <Badge color="slate">Hidden</Badge>}
-                    {entity === "categories" && <Badge color="gold">{item.provider_count || 0} provider{item.provider_count === 1 ? "" : "s"}</Badge>}
+                    {entity === "categories" && item.type === "article" && <Badge>Articles</Badge>}
+                    {entity === "categories" && item.type === "article"
+                      ? <Badge color="gold">{item.article_count || 0} article{item.article_count === 1 ? "" : "s"}</Badge>
+                      : entity === "categories" && <Badge color="gold">{item.provider_count || 0} provider{item.provider_count === 1 ? "" : "s"}</Badge>}
                   </div>
                   <p className="text-sm text-muted-foreground truncate">
                     {item.specialty || item.category || item.excerpt || item.description || item.date || ""}
@@ -708,7 +714,7 @@ function EntityManager({ entity }) {
 function CategorySelect({ value, onChange, testid }) {
   const [opts, setOpts] = useState([]);
   useEffect(() => {
-    api.get("/categories").then((r) => setOpts(r.data.map((c) => c.name))).catch(() => setOpts([]));
+    api.get("/categories").then((r) => setOpts(r.data.filter((c) => c.type !== "article").map((c) => c.name))).catch(() => setOpts([]));
   }, []);
   const names = !value || opts.includes(value) ? opts : [value, ...opts];
   return (
@@ -719,6 +725,23 @@ function CategorySelect({ value, onChange, testid }) {
         {names.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
       </SelectContent>
     </Select>
+  );
+}
+
+function ArticleCategoryField({ value, onChange, testid }) {
+  const [opts, setOpts] = useState([]);
+  useEffect(() => {
+    Promise.all([
+      api.get("/categories", { params: { type: "article" } }).then((r) => r.data.map((c) => c.name)).catch(() => []),
+      api.get("/admin/articles").then((r) => r.data.map((a) => a.category).filter(Boolean)).catch(() => []),
+    ]).then(([a, b]) => setOpts([...new Set([...a, ...b])].sort()));
+  }, []);
+  return (
+    <>
+      <Input data-testid={testid} list="article-category-options" value={value || ""} onChange={(e) => onChange(e.target.value)} placeholder="e.g. Nutrition, Mental Health" />
+      <datalist id="article-category-options">{opts.map((o) => <option key={o} value={o} />)}</datalist>
+      <p className="mt-1 text-xs text-muted-foreground">Pick an existing topic or type a new one. Readers can filter the blog by topic.</p>
+    </>
   );
 }
 
@@ -746,6 +769,8 @@ function Field({ field, value, onChange, form }) {
         <ImageField value={value} onChange={onChange} testid={`field-${field.key}`} />
       ) : field.type === "category-select" ? (
         <CategorySelect value={value} onChange={onChange} testid={`field-${field.key}`} />
+      ) : field.type === "article-category" ? (
+        <ArticleCategoryField value={value} onChange={onChange} testid={`field-${field.key}`} />
       ) : field.type === "country" ? (
         <Select value={value || ""} onValueChange={onChange}>
           <SelectTrigger data-testid={`field-${field.key}`}><SelectValue placeholder="Select country" /></SelectTrigger>
@@ -774,7 +799,7 @@ function Field({ field, value, onChange, form }) {
         <Select value={value || ""} onValueChange={onChange}>
           <SelectTrigger data-testid={`field-${field.key}`}><SelectValue placeholder="Select" /></SelectTrigger>
           <SelectContent>
-            {field.options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            {field.options.map((o) => <SelectItem key={o} value={o}>{field.optionLabels?.[o] || o}</SelectItem>)}
           </SelectContent>
         </Select>
       ) : (
@@ -1341,6 +1366,112 @@ function AnalyticsManager() {
       )}
       </>
       )}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Search gaps
+// -----------------------------------------------------------------------------
+function SearchGapsManager() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [onlyGaps, setOnlyGaps] = useState(true);
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    const params = {};
+    if (start) params.start = start;
+    if (end) params.end = end;
+    api.get("/admin/search-gaps", { params })
+      .then((r) => setData(r.data))
+      .catch(() => setData({ terms: [], total_searches: 0, zero_result_searches: 0 }))
+      .finally(() => setLoading(false));
+  }, [start, end]);
+  useEffect(() => { load(); }, [load]);
+
+  const clear = async () => {
+    try { await api.delete("/admin/search-gaps"); toast.success("Search history cleared"); setConfirmClear(false); load(); }
+    catch { toast.error("Failed to clear"); }
+  };
+
+  const fmtTime = (iso) => { try { return new Date(iso).toLocaleString(); } catch { return iso; } };
+  const terms = (data?.terms || []).filter((t) => !onlyGaps || t.zero_results > 0);
+
+  return (
+    <div data-testid="search-gaps-manager">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div>
+          <h2 className="font-display text-2xl font-bold text-[#0F172A]">Search Gaps</h2>
+          <p className="text-sm text-muted-foreground">What visitors look for in the directory — and what they can't find.</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <DateRangeBar start={start} end={end} setStart={setStart} setEnd={setEnd} testid="search-gaps" />
+          <Button variant="outline" size="sm" onClick={() => setConfirmClear(true)} data-testid="clear-searches-btn" className="text-red-500 border-red-200 hover:bg-red-50"><Trash2 size={14} className="mr-1.5" /> Clear</Button>
+        </div>
+      </div>
+      {loading ? <p className="text-muted-foreground py-10 text-center">Loading...</p> : (
+      <>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+        {[
+          { l: "Total searches", v: data?.total_searches || 0, t: "search-total" },
+          { l: "No-result searches", v: data?.zero_result_searches || 0, t: "search-zero" },
+          { l: "Unmet terms", v: (data?.terms || []).filter((x) => x.zero_results > 0).length, t: "search-unmet" },
+        ].map((c) => (
+          <div key={c.l} className="bg-white rounded-2xl border border-[#E89D93]/15 p-5" data-testid={c.t}>
+            <div className="font-display text-3xl font-bold text-[#0B132B]">{c.v}</div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground mt-1">{c.l}</div>
+          </div>
+        ))}
+      </div>
+
+      <label className="flex items-center gap-2 text-sm text-muted-foreground mb-3 cursor-pointer w-fit">
+        <Switch data-testid="only-gaps-toggle" checked={onlyGaps} onCheckedChange={setOnlyGaps} /> Show only searches with no results
+      </label>
+
+      {terms.length === 0 ? (
+        <div className="rounded-2xl border-2 border-dashed border-[#E89D93]/25 py-16 text-center">
+          <SearchIcon size={28} className="mx-auto text-[#E89D93]/60" />
+          <p className="mt-3 text-muted-foreground" data-testid="search-gaps-empty">{onlyGaps ? "No unmet searches yet — every search found something." : "No searches recorded yet."}</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-[#E89D93]/15 overflow-hidden">
+          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-4 py-2.5 bg-[#FAF7F2] text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <span>Search term</span><span className="text-right">Searches</span><span className="text-right">No results</span><span className="text-right hidden sm:block">Last searched</span>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {terms.map((t, i) => (
+              <div key={t.term} data-testid={`search-gap-row-${i}`} className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-4 py-3 items-center hover:bg-[#FAF7F2]">
+                <div className="min-w-0">
+                  <div className="font-medium text-[#0F172A] truncate">"{t.term}"</div>
+                  {t.countries.length > 0 && <div className="text-xs text-muted-foreground truncate">{t.countries.join(", ")}</div>}
+                </div>
+                <span className="text-right text-sm">{t.count}</span>
+                <span className={`text-right text-sm font-semibold ${t.zero_results > 0 ? "text-red-500" : "text-emerald-600"}`}>{t.zero_results}</span>
+                <span className="text-right text-xs text-muted-foreground whitespace-nowrap hidden sm:block">{fmtTime(t.last_searched)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      </>
+      )}
+
+      <AlertDialog open={confirmClear} onOpenChange={(v) => !v && setConfirmClear(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear all search history?</AlertDialogTitle>
+            <AlertDialogDescription>This permanently removes every recorded search. It cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={clear} className="bg-red-500 hover:bg-red-600">Clear</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

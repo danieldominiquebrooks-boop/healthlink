@@ -12,19 +12,42 @@ const FALLBACK = "https://images.unsplash.com/photo-1505751172876-fa1923c5c528?w
 export default function Blog() {
   const { country, region } = useLocation();
   const [articles, setArticles] = useState([]);
+  const [cats, setCats] = useState([]);
+  const [cat, setCat] = useState("all");
 
   useEffect(() => {
     const p = {};
     if (country && country !== "All Countries") p.country = country;
     if (region && region !== "All Parishes/Islands") p.region = region;
-    api.get("/articles", { params: p }).then((r) => setArticles(r.data)).catch(() => setArticles([]));
+    api.get("/articles/categories", { params: p }).then((r) => setCats(r.data)).catch(() => setCats([]));
+    setCat("all");
   }, [country, region]);
+
+  useEffect(() => {
+    const p = {};
+    if (country && country !== "All Countries") p.country = country;
+    if (region && region !== "All Parishes/Islands") p.region = region;
+    if (cat !== "all") p.category = cat;
+    api.get("/articles", { params: p }).then((r) => setArticles(r.data)).catch(() => setArticles([]));
+  }, [country, region, cat]);
+
+  const chip = (active) => `px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${active ? "bg-[#0B132B] text-white border-[#0B132B]" : "bg-white text-[#0F172A] border-[#E89D93]/30 hover:border-[#E89D93]"}`;
 
   return (
     <Layout>
       <NewsletterModal context="articles" />
       <PageHero title="Health Blog" subtitle="Articles, educational material and announcements to help you live healthier." testid="blog-hero" note={country !== "All Countries" ? (region !== "All Parishes/Islands" ? `${region}, ${country}` : country) : null} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {cats.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-6" data-testid="blog-category-filter">
+            <button onClick={() => setCat("all")} data-testid="blog-cat-all" className={chip(cat === "all")}>All topics</button>
+            {cats.map((c) => (
+              <button key={c.name} onClick={() => setCat(c.name)} data-testid={`blog-cat-${c.name.toLowerCase().replace(/\s+/g, "-")}`} className={chip(cat === c.name)}>
+                {c.name} <span className="opacity-60">({c.count})</span>
+              </button>
+            ))}
+          </div>
+        )}
         {articles.length ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {articles.map((a, i) => (
@@ -48,7 +71,7 @@ export default function Blog() {
         ) : (
           <div className="rounded-2xl border-2 border-dashed border-[#E89D93]/25 py-20 text-center">
             <BookOpen size={30} className="mx-auto text-[#E89D93]/60" />
-            <p className="mt-3 text-muted-foreground">No articles published yet.</p>
+            <p className="mt-3 text-muted-foreground">{cat !== "all" ? `No articles in "${cat}" yet.` : "No articles published yet."}</p>
           </div>
         )}
       </div>

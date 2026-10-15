@@ -33,7 +33,7 @@ export default function Home() {
   const [events, setEvents] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [settings, setSettings] = useState({});
-  const [stats, setStats] = useState({ providers: 0, countries_covered: 12, articles: 0, events: 0 });
+  const [stats, setStats] = useState({ providers: 0, articles: 0, events: 0 });
 
   useEffect(() => {
     api.get("/settings").then((r) => setSettings(r.data || {})).catch(() => {});
@@ -107,7 +107,6 @@ export default function Home() {
             <div className="mt-10 flex flex-wrap gap-8">
               {[
                 { n: `${stats.providers}+`, l: "Verified Providers" },
-                { n: `${stats.countries_covered}`, l: "Countries Covered" },
                 { n: `${stats.articles}+`, l: "Health Articles" },
               ].map((s) => (
                 <div key={s.l}>

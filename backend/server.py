@@ -791,6 +791,7 @@ async def admin_list_categories(admin: dict = Depends(get_current_admin)):
     docs = await db.categories.find({}, {"_id": 0}).sort("name", 1).to_list(500)
     for c in docs:
         c["provider_count"] = await db.providers.count_documents({"category": c["name"]})
+        c["article_count"] = await db.articles.count_documents({"category": c["name"]})
     return docs
 
 @api_router.post("/admin/categories/sync")
@@ -907,6 +908,16 @@ async def list_articles(country: Optional[str] = None, region: Optional[str] = N
         query["$or"] = [{"title": rx}, {"excerpt": rx}, {"content": rx}]
     docs = await db.articles.find(query, {"_id": 0}).sort([("featured", -1), ("created_at", -1)]).to_list(limit)
     return docs
+
+@api_router.get("/articles/categories")
+async def article_categories(country: Optional[str] = None, region: Optional[str] = None):
+    query = {"published": True, "category": {"$nin": ["", None]}}
+    if country and country != "All Countries":
+        query["country"] = country
+    apply_region_filter(query, region)
+    pipeline = [{"$match": query}, {"$group": {"_id": "$category", "count": {"$sum": 1}}}, {"$sort": {"count": -1, "_id": 1}}]
+    rows = await db.articles.aggregate(pipeline).to_list(200)
+    return [{"name": r["_id"], "count": r["count"]} for r in rows]
 
 @api_router.get("/articles/{slug}")
 async def get_article(slug: str):
@@ -1233,6 +1244,57 @@ async def _geolocate_visit(visit_id: str, ip: str):
 @api_router.post("/track/duration")
 async def track_duration(payload: DurationInput):
     await db.visits.update_one({"id": payload.visit_id}, {"$set": {"duration": round(payload.duration)}})
+    return {"ok": True}
+
+class SearchTrackInput(BaseModel):
+    q: str
+    country: Optional[str] = ""
+    region: Optional[str] = ""
+    results: int = 0
+
+@api_router.post("/search/track")
+async def track_search(payload: SearchTrackInput):
+    term = payload.q.strip()
+    if len(term) < 2:
+        return {"ok": False}
+    await db.searches.insert_one({
+        "id": new_id(), "term": term, "term_key": term.lower(),
+        "country": payload.country or "", "region": payload.region or "",
+        "results": max(0, payload.results), "ts": now_iso(),
+    })
+    return {"ok": True}
+
+@api_router.get("/admin/search-gaps")
+async def search_gaps(start: Optional[str] = None, end: Optional[str] = None, admin: dict = Depends(get_current_admin)):
+    sq = {}
+    if start:
+        sq.setdefault("ts", {})["$gte"] = start
+    if end:
+        sq.setdefault("ts", {})["$lte"] = end + "T23:59:59.999999"
+    pipeline = [
+        {"$match": sq},
+        {"$group": {
+            "_id": "$term_key", "term": {"$last": "$term"}, "count": {"$sum": 1},
+            "zero_results": {"$sum": {"$cond": [{"$eq": ["$results", 0]}, 1, 0]}},
+            "last_searched": {"$max": "$ts"}, "countries": {"$addToSet": "$country"},
+        }},
+        {"$sort": {"zero_results": -1, "count": -1}},
+        {"$limit": 300},
+    ]
+    rows = await db.searches.aggregate(pipeline).to_list(300)
+    total = await db.searches.count_documents(sq)
+    zero = await db.searches.count_documents({**sq, "results": 0})
+    return {
+        "total_searches": total, "zero_result_searches": zero,
+        "terms": [{
+            "term": r["term"], "count": r["count"], "zero_results": r["zero_results"],
+            "last_searched": r["last_searched"], "countries": [c for c in r["countries"] if c],
+        } for r in rows],
+    }
+
+@api_router.delete("/admin/search-gaps")
+async def clear_search_gaps(admin: dict = Depends(get_current_admin)):
+    await db.searches.delete_many({})
     return {"ok": True}
 
 @api_router.get("/admin/analytics")
