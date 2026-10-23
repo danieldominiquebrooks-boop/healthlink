@@ -527,6 +527,7 @@ async def update_account(payload: AccountUpdate, admin: dict = Depends(get_curre
         if len(payload.new_password) < 8:
             raise HTTPException(status_code=400, detail="New password must be at least 8 characters.")
         updates["password_hash"] = hash_password(payload.new_password)
+        updates["password_set_in_app"] = True
     if not updates:
         raise HTTPException(status_code=400, detail="Nothing to update.")
     await db.users.update_one({"_id": user["_id"]}, {"$set": updates})
@@ -1310,6 +1311,9 @@ async def seed_admin():
     elif existing["email"] != admin_email and not await db.users.find_one({"email": admin_email}):
         await db.users.update_one({"_id": existing["_id"]}, {"$set": {"email": admin_email}})
         logger.info(f"Admin email synced from env: {existing['email']} -> {admin_email}")
+    if existing is not None and not existing.get("password_set_in_app") and not verify_password(admin_password, existing["password_hash"]):
+        await db.users.update_one({"_id": existing["_id"]}, {"$set": {"password_hash": hash_password(admin_password)}})
+        logger.info("Admin password synced from env")
 
 @app.on_event("startup")
 async def startup():
