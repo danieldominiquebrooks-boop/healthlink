@@ -1307,6 +1307,9 @@ async def seed_admin():
             "created_at": now_iso(),
         })
         logger.info(f"Seeded admin user {admin_email}")
+    elif existing["email"] != admin_email and not await db.users.find_one({"email": admin_email}):
+        await db.users.update_one({"_id": existing["_id"]}, {"$set": {"email": admin_email}})
+        logger.info(f"Admin email synced from env: {existing['email']} -> {admin_email}")
 
 @app.on_event("startup")
 async def startup():
