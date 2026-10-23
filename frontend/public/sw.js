@@ -1,4 +1,3 @@
-/* global clients */
 // Service worker — makes the app installable, available offline, and able to receive push.
 const CACHE = "hl-cache-v3";
 const SHELL = ["/", "/index.html", "/manifest.json", "/icon-192.png", "/icon-512.png", "/favicon.png"];
@@ -62,11 +61,11 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const target = (event.notification.data && event.notification.data.url) || "/";
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
       for (const w of wins) {
         if ("focus" in w) { w.navigate(target); return w.focus(); }
       }
-      return clients.openWindow(target);
+      return self.clients.openWindow(target);
     })
   );
 });

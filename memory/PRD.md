@@ -83,3 +83,4 @@ Responsive Caribbean healthcare directory web app for phone/tablet/desktop. Prov
 - Article categories: `GET /api/articles/categories`, Blog category chips filter, admin Articles category datalist input, Categories "Used for" (Providers | Articles/Blog) with article_count badge.
 - Tested: /app/test_reports/iteration_16.json (all pass).
 - Backlog unchanged: Payment integration (Kanoo/SunCash — awaiting user scoping), Share Provider, Provider Timezone, Hours Copy, Featured Carousel, Country Landing Pages, Merge Categories.
+- Handover export (2026-06): `GET /api/admin/export/handover` -> ZIP (data/*.json for 13 collections minus secrets, uploads/ images from object storage, brand/ assets, HANDOVER.md, ENV_VARIABLES.md, restore_data.py). Button in Admin > Settings ("Handover package"). Self-tested via curl + screenshot.

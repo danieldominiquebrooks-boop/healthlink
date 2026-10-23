@@ -1109,6 +1109,145 @@ async def serve_file(path: str):
     ct = (record.get("content_type") if record else None) or content_type
     return Response(content=data, media_type=ct, headers={"Cache-Control": "public, max-age=86400"})
 
+# ----------------------------------------------------------------------------
+# Handover package export (code is exported via GitHub; this bundles data + assets)
+# ----------------------------------------------------------------------------
+EXPORT_COLLECTIONS = [
+    "providers", "services", "categories", "articles", "events", "reviews",
+    "subscribers", "quizzes", "quiz_responses", "settings", "campaigns", "files", "searches",
+]
+ENV_DOCS = [
+    ("MONGO_URL", "MongoDB connection string (e.g. mongodb://localhost:27017 or a MongoDB Atlas URI)"),
+    ("DB_NAME", "MongoDB database name"),
+    ("CORS_ORIGINS", "Comma-separated allowed origins for the frontend (or *)"),
+    ("JWT_SECRET", "Long random string used to sign admin login tokens"),
+    ("ADMIN_EMAIL", "Email of the first admin account (seeded on first start)"),
+    ("ADMIN_PASSWORD", "Password of the first admin account"),
+    ("EMERGENT_LLM_KEY", "Emergent universal key — used for object storage (image uploads). Replace storage code if self-hosting outside Emergent."),
+    ("EMERGENT_EMAIL_KEY", "Emergent-managed email (Resend) key for 2FA codes, newsletters and campaigns"),
+    ("EMAIL_FROM_NAME", "Display name used on outgoing emails"),
+    ("VAPID_PUBLIC_KEY", "Web push VAPID public key (generate with `vapid --gen`)"),
+    ("VAPID_PRIVATE_KEY", "Web push VAPID private key"),
+    ("VAPID_SUBJECT", "mailto: address identifying the push sender"),
+    ("REACT_APP_BACKEND_URL", "(frontend/.env) Public URL of the backend, e.g. https://yourdomain.com"),
+]
+
+HANDOVER_MD = """# My Healthcare Link — Handover Package
+
+Generated: {generated}
+
+This ZIP contains everything that is NOT in the source-code repository:
+
+| Folder / file | Contents |
+|---|---|
+| `data/*.json` | One JSON file per database collection ({collections}) |
+| `uploads/` | Every image uploaded through the admin panel (provider / article / event photos) |
+| `brand/` | Logos, icons, favicons and PWA manifest used by the website |
+| `restore_data.py` | Script that re-imports `data/*.json` into a MongoDB database |
+| `ENV_VARIABLES.md` | Every environment variable the app needs (names + purpose, no secret values) |
+
+Totals: {counts}
+
+## How to rebuild the site
+
+1. **Source code** — obtain the Git repository (React frontend in `frontend/`, FastAPI backend in `backend/`).
+2. **Database** — create a MongoDB database (local or MongoDB Atlas), then run:
+   ```
+   pip install pymongo
+   python restore_data.py "mongodb://localhost:27017" healthlink
+   ```
+3. **Images** — uploaded images are referenced in the data as `/api/files/<storage_path>`.
+   The matching file is in `uploads/` with the same filename as the end of `storage_path`
+   (see `data/files.json` for the full mapping). Either keep the Emergent object storage,
+   or serve the `uploads/` folder yourself and update `serve_file` in `backend/server.py`.
+4. **Environment variables** — create `backend/.env` and `frontend/.env` using `ENV_VARIABLES.md`.
+5. **Run**
+   ```
+   cd backend && pip install -r requirements.txt && uvicorn server:app --host 0.0.0.0 --port 8001
+   cd frontend && yarn install && yarn start   # or `yarn build` for production
+   ```
+   All backend routes are served under `/api`; the frontend calls them via `REACT_APP_BACKEND_URL`.
+6. Log in at `/admin` with `ADMIN_EMAIL` / `ADMIN_PASSWORD` (a 2FA code is emailed).
+
+## Not included (by design)
+- Admin passwords and login tokens, 2FA challenges, raw web-push subscriptions, visitor IP logs.
+- Secret values of environment variables.
+"""
+
+RESTORE_PY = '''import json, sys, glob, os
+from pymongo import MongoClient
+
+if len(sys.argv) < 3:
+    print("usage: python restore_data.py <MONGO_URL> <DB_NAME>")
+    sys.exit(1)
+db = MongoClient(sys.argv[1])[sys.argv[2]]
+here = os.path.dirname(os.path.abspath(__file__))
+for path in sorted(glob.glob(os.path.join(here, "data", "*.json"))):
+    name = os.path.splitext(os.path.basename(path))[0]
+    docs = json.load(open(path, encoding="utf-8"))
+    if name == "settings":
+        for d in docs:
+            db.settings.replace_one({"_id": d["_id"]}, d, upsert=True)
+    elif docs:
+        db[name].delete_many({})
+        db[name].insert_many(docs)
+    print(f"{name}: {len(docs)} documents")
+print("done")
+'''
+
+def _public_dir() -> Path:
+    return Path(__file__).resolve().parent.parent / "frontend" / "public"
+
+@api_router.get("/admin/export/handover")
+async def export_handover(admin: dict = Depends(get_current_admin)):
+    import zipfile
+    buf = io.BytesIO()
+    counts = {}
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for name in EXPORT_COLLECTIONS:
+            proj = {"_id": 0} if name != "settings" else None
+            docs = await db[name].find({}, proj).to_list(100000)
+            if name == "subscribers":
+                for d in docs:
+                    d.pop("push_subscription", None)
+            counts[name] = len(docs)
+            z.writestr(f"data/{name}.json", json.dumps(docs, indent=1, default=str, ensure_ascii=False))
+
+        files = await db.files.find({}, {"_id": 0}).to_list(10000)
+        paths = [f["storage_path"] for f in files if f.get("storage_path")]
+
+        async def fetch(sp):
+            try:
+                data, _ = await asyncio.to_thread(get_object, sp)
+                return sp, data
+            except Exception as e:
+                logger.warning(f"handover: could not fetch {sp}: {e}")
+                return sp, None
+
+        fetched = 0
+        for sp, data in await asyncio.gather(*(fetch(p) for p in paths)):
+            if data is not None:
+                z.writestr(f"uploads/{sp.rsplit('/', 1)[-1]}", data)
+                fetched += 1
+        counts["uploaded_images"] = fetched
+
+        pub = _public_dir()
+        if pub.exists():
+            for p in pub.iterdir():
+                if p.suffix.lower() in (".png", ".ico", ".svg", ".jpg", ".jpeg", ".webp", ".json") and p.is_file():
+                    z.write(p, f"brand/{p.name}")
+
+        z.writestr("ENV_VARIABLES.md", "# Environment variables\n\n| Name | Purpose |\n|---|---|\n" +
+                   "\n".join(f"| `{k}` | {v} |" for k, v in ENV_DOCS) + "\n")
+        z.writestr("restore_data.py", RESTORE_PY)
+        z.writestr("HANDOVER.md", HANDOVER_MD.format(
+            generated=now_iso(), collections=", ".join(EXPORT_COLLECTIONS),
+            counts=", ".join(f"{k}: {v}" for k, v in counts.items()),
+        ))
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
+    return Response(content=buf.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="healthlink-handover-{stamp}.zip"'})
+
 @api_router.post("/admin/providers/bulk")
 async def bulk_import_providers(file: UploadFile = File(...), admin: dict = Depends(get_current_admin)):
     raw = await file.read()

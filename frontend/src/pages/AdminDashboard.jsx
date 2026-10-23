@@ -989,6 +989,38 @@ function SettingField({ k, label, ph, area, value, onChange }) {
   );
 }
 
+function HandoverExport() {
+  const [busy, setBusy] = useState(false);
+  const download = async () => {
+    setBusy(true);
+    try {
+      const res = await api.get("/admin/export/handover", { responseType: "blob", timeout: 300000 });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/zip" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = `healthlink-handover-${new Date().toISOString().slice(0, 10)}.zip`; a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success("Handover package downloaded");
+    } catch { toast.error("Export failed. Please try again."); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="bg-white rounded-2xl border border-[#D4AF37]/40 p-5" data-testid="handover-card">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="max-w-xl">
+          <h3 className="font-display font-bold text-[#0F172A] flex items-center gap-2"><Download size={16} className="text-[#D4AF37]" /> Handover package</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Downloads one ZIP with every database collection (JSON), all uploaded images, brand assets, a restore script and a
+            <span className="font-semibold"> HANDOVER.md</span> with setup instructions. Pair it with "Save to GitHub" for the source code to transfer the site to its owner.
+          </p>
+        </div>
+        <Button onClick={download} disabled={busy} data-testid="handover-export-btn" className="bg-[#0B132B] hover:bg-[#1C2541] text-white">
+          <Download size={15} className="mr-1.5" /> {busy ? "Preparing..." : "Export handover ZIP"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // -----------------------------------------------------------------------------
 // Site settings + account/security
 // -----------------------------------------------------------------------------
@@ -1040,6 +1072,8 @@ function SettingsManager() {
   return (
     <div className="space-y-6" data-testid="settings-manager">
       <h2 className="font-display text-2xl font-bold text-[#0F172A]">Settings</h2>
+
+      <HandoverExport />
 
       <div className="bg-white rounded-2xl border border-[#E89D93]/15 p-5">
         <h3 className="font-display font-bold text-[#0F172A] mb-4">Site content</h3>
